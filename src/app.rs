@@ -12,7 +12,8 @@ use winit::window::{Window, WindowId};
 use crate::buzz::GlyphHandler as BuzzHandler;
 use crate::ft::GlyphHandler as FtHandler;
 
-const TEXT: &str = "abcdefABCDEF";
+//const TEXT: &str = "abcdefABCDEF";
+const TEXT: &str = "0Oo";
 const LONGLONGTEXT: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
 
 pub struct App {
@@ -67,15 +68,17 @@ impl ApplicationHandler for App {
             } => match key.as_ref() {
                 Key::Character("+") => {
                     if let Some(win) = self.window.as_ref() {
-                        let fs = self.ft.font_size;
-                        self.ft.set_font_size(fs + 1.0);
+                        let fs = self.buzz.font_size;
+                        //self.ft.set_font_size(fs + 1.0);
+                        self.buzz.set_font_size(fs + 4.0);
                         win.request_redraw();
                     }
                 }
                 Key::Character("-") => {
                     if let Some(win) = self.window.as_ref() {
-                        let fs = self.ft.font_size;
-                        self.ft.set_font_size(fs - 1.0);
+                        let fs = self.buzz.font_size;
+                        //self.ft.set_font_size(fs - 1.0);
+                        self.buzz.set_font_size(fs - 4.0);
                         win.request_redraw();
                     }
                 }
@@ -93,6 +96,7 @@ impl ApplicationHandler for App {
                         )
                         .unwrap();
                     self.ft.set_buffer_size(new_size.width, new_size.height);
+                    self.buzz.set_buffer_size(new_size.width, new_size.height);
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -109,18 +113,15 @@ impl ApplicationHandler for App {
                         }
 
                         // ft
-                        let f = self.ft.render(TEXT);
-                        self.ft.draw(&f, &mut surface_buffer);
+                        //let f = self.ft.render(TEXT);
+                        //self.ft.draw(&f, &mut surface_buffer);
 
-                        println!("-----");
                         // buzz
                         let b = self.buzz.raster(TEXT);
-                        self.buzz.draw2(&b, &mut surface_buffer);
-                        //let g = self.font.raster(LONGLONGTEXT);
-                        //self.font.draw(&g, &mut surface_buffer);
+                        self.buzz.draw(&b, &mut surface_buffer);
 
-                        //surface_buffer.present().unwrap();
-                        event_loop.exit();
+                        surface_buffer.present().unwrap();
+                        //event_loop.exit();
                     }
                 }
             }

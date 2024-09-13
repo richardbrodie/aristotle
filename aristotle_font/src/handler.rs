@@ -31,7 +31,7 @@ impl GlyphHandler {
         dbg!(face.line_gap());
         dbg!(face.width());
 
-        let font_size = 36.0;
+        let font_size = 24.0;
         let scale_factor = scale_factor(font_size, &face);
 
         Self {
@@ -106,7 +106,6 @@ impl GlyphHandler {
         let mut last = None;
         let mut caret = Point::default();
         let scaled_height = face.height() as f32 * self.scale_factor;
-        //for para in self.raw_text.iter() {
         for c in self.raw_text.chars() {
             let gido = face.glyph_index(c);
             if gido.is_none() {
@@ -117,6 +116,9 @@ impl GlyphHandler {
             //- face.glyph_hor_side_bearing(gid).unwrap() as f32 * self.scale_factor;
             if caret.x + hadv >= self.width as f32 {
                 caret = Point::new(0.0, caret.y + scaled_height);
+            }
+            if caret.y + scaled_height > self.height as f32 {
+                return;
             }
             let pos = caret;
             caret.x += hadv;
@@ -135,8 +137,6 @@ impl GlyphHandler {
 
             self.typeset_text.push(Glyph { gid, pos, dim })
         }
-        //    caret = Point(0.0, caret.1 + (1.0 * scaled_height));
-        //}
     }
 
     pub fn raster<F>(&self, mut pix_func: F)

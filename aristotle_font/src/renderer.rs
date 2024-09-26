@@ -10,13 +10,13 @@ fn scale_factor(font_size: f32, font: &Face) -> f32 {
     px_per_em / units_per_em
 }
 
-pub struct GlyphHandler {
+pub struct TextRenderer {
     point_size: f32,
     pub font: Option<Family>,
     pub canvas_width: u32,
     canvas_height: u32,
 }
-impl GlyphHandler {
+impl TextRenderer {
     pub fn new(config: &RenderingConfig) -> Self {
         Self {
             font: config.font.clone(),

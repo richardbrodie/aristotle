@@ -9,11 +9,15 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-use aristotle_font::{FontIndexer, Indexer, Point, RenderingConfig, TextObject, TextRenderer};
+use aristotle_font::{
+    fonts::{Faces, FontIndexer, FontStyle, Indexer},
+    geom::Point,
+    renderer::TextRenderer,
+    RenderingConfig, TextObject, TypesetObject,
+};
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
-const SHORT: &str = "Hello world, hello";
 const LONG: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
 
 fn main() {
@@ -27,9 +31,10 @@ fn main() {
 pub struct App {
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    glyphs: TextRenderer,
+    renderer: TextRenderer,
     font_index: FontIndexer,
     text: Vec<TextObject>,
+    typeset_text: Vec<TypesetObject>,
 }
 
 impl App {
@@ -45,8 +50,9 @@ impl App {
         Self {
             window: None,
             surface: None,
-            glyphs,
+            renderer: glyphs,
             text: vec![],
+            typeset_text: vec![],
             font_index: indexer,
         }
     }
@@ -57,11 +63,48 @@ impl App {
                 .unwrap(),
         );
         let fam = self.font_index.get_family("Vollkorn").unwrap();
-        self.glyphs.font = Some(fam);
+        let styles = fam.styles().fold(String::new(), |mut s, style| {
+            let f = format!(", {:?}", style);
+            s.push_str(&f);
+            s
+        });
+        println!("family: {}, styles: [{}]", fam.name, styles);
+        self.renderer.font = Some(fam);
 
         let context = softbuffer::Context::new(window.clone()).unwrap();
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
+
+        self.text = vec![
+            TextObject {
+                raw_text: "Hello world, ".to_owned(),
+                ..Default::default()
+            },
+            TextObject {
+                raw_text: "some italics, ".to_owned(),
+                style: Some(FontStyle::Italic),
+                ..Default::default()
+            },
+            TextObject {
+                raw_text: "some bold, ".to_owned(),
+                style: Some(FontStyle::Bold),
+                ..Default::default()
+            },
+            TextObject {
+                raw_text: "even bold italic, ".to_owned(),
+                style: Some(FontStyle::BoldItalic),
+                ..Default::default()
+            },
+            TextObject {
+                raw_text: "then back to normal ".to_owned(),
+                ..Default::default()
+            },
+            TextObject {
+                raw_text: "but smaller".to_owned(),
+                size: Some(22.0),
+                ..Default::default()
+            },
+        ];
     }
 }
 impl ApplicationHandler for App {
@@ -101,12 +144,15 @@ impl ApplicationHandler for App {
                 }
                 Key::Named(NamedKey::Space) => {
                     if let Some(win) = self.window.as_ref() {
-                        let to = TextObject {
-                            start_pos: Point::default(),
-                            raw_text: SHORT.to_owned(),
-                            ..Default::default()
-                        };
-                        self.text.push(to);
+                        let caret = self
+                            .typeset_text
+                            .last()
+                            .map(|l| l.caret)
+                            .unwrap_or(Point::default());
+
+                        let to = &self.text[self.typeset_text.len()];
+                        let t = self.renderer.typeset(&to, caret).unwrap();
+                        self.typeset_text.push(t);
                         win.request_redraw();
                     }
                     //if let Some(win) = self.window.as_ref() {
@@ -138,7 +184,8 @@ impl ApplicationHandler for App {
                             NonZeroU32::new(new_size.height).unwrap(),
                         )
                         .unwrap();
-                    self.glyphs.set_buffer_size(new_size.width, new_size.height);
+                    self.renderer
+                        .set_buffer_size(new_size.width, new_size.height);
                 }
             }
             WindowEvent::RedrawRequested => {
@@ -154,14 +201,11 @@ impl ApplicationHandler for App {
                             }
                         }
 
-                        let caret = Point::default();
-                        if self.text.len() > 0 {
-                            let t = self.glyphs.typeset(&self.text[0], caret).unwrap();
-                            // caret = t.caret;
-                            let _ = self.glyphs.raster(&t.glyphs, |x, y, z| {
+                        for to in self.typeset_text.iter() {
+                            let _ = self.renderer.raster(&to, |x, y, z| {
                                 let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
                                 let idx =
-                                    x as usize + y as usize * self.glyphs.canvas_width as usize;
+                                    x as usize + y as usize * self.renderer.canvas_width as usize;
                                 surface_buffer[idx] = surface_buffer[idx].min(c);
                             });
                         }

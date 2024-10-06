@@ -68,8 +68,9 @@ impl TextRenderer {
     pub fn typeset(&mut self, text: &TextObject, pos: Point) -> Result<TypesetObject, Error> {
         // TODO: make this cleaner
         let family = self.font.as_ref().unwrap();
-        let face = family.get_face(FontStyle::Regular).unwrap();
-        let scale_factor = face.scale_factor(self.point_size);
+        let style = text.style.unwrap_or(FontStyle::Regular);
+        let face = family.get_face(style).unwrap();
+        let scale_factor = face.scale_factor(text.size.unwrap_or(self.point_size));
         let face = face.as_face();
 
         let mut last = None;
@@ -107,20 +108,29 @@ impl TextRenderer {
 
             glyphs.push(Glyph { gid, pos, dim })
         }
-        return Ok(TypesetObject::new(glyphs, pos, caret));
+        return Ok(TypesetObject {
+            glyphs,
+            start: pos,
+            caret,
+            size: text.size,
+            style: text.style,
+            ..Default::default()
+        });
     }
 
-    pub fn raster<F>(&self, text: &[Glyph], mut pix_func: F) -> Result<(), Error>
+    pub fn raster<F>(&self, text: &TypesetObject, mut pix_func: F) -> Result<(), Error>
     where
         F: FnMut(u32, u32, u8),
     {
         let family = self.font.as_ref().unwrap();
-        let face = family.get_face(FontStyle::Regular).unwrap();
-        let scale_factor = face.scale_factor(self.point_size);
+        let style = text.style.unwrap_or(FontStyle::Regular);
+        let face = family.get_face(style).unwrap();
+        let scale_factor = face.scale_factor(text.size.unwrap_or(self.point_size));
+
         let face = face.as_face();
 
         let mut builder = Builder::new(face.descender(), scale_factor);
-        for g in text.iter() {
+        for g in text.glyphs.iter() {
             let min = g.dim.min;
             let max = g.dim.max;
             let w = (2.0 * max.x * scale_factor).ceil();

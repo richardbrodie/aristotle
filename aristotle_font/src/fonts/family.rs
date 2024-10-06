@@ -15,7 +15,7 @@ impl From<&str> for FontStyle {
             "Regular" => Self::Regular,
             "Bold" => Self::Bold,
             "Italic" => Self::Italic,
-            "BoldItalic" => Self::BoldItalic,
+            "Bold Italic" => Self::BoldItalic,
             "Mono" | "Book" => Self::Mono,
             _ => Self::Regular,
         }

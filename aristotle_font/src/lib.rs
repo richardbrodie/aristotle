@@ -1,9 +1,12 @@
-mod builder;
-mod fonts;
-mod geom;
-mod renderer;
+pub mod builder;
+pub mod fonts;
+pub mod geom;
+pub mod renderer;
 
 use ttf_parser::GlyphId;
+
+use self::fonts::{Family, FontStyle};
+use self::geom::{Point, Rect};
 
 #[derive(Clone, Debug)]
 pub enum Error {
@@ -18,13 +21,11 @@ pub struct RenderingConfig {
     pub font: Option<Family>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct FontWeight(f32);
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct TextObject {
-    pub start_pos: Point,
-    pub end_pos: Option<Point>,
     pub raw_text: String,
     pub size: Option<f32>,
     pub style: Option<FontStyle>,
@@ -36,6 +37,9 @@ pub struct TypesetObject {
     pub start: Point,
     pub caret: Point,
     pub glyphs: Vec<Glyph>,
+    pub size: Option<f32>,
+    pub style: Option<FontStyle>,
+    pub weight: Option<FontWeight>,
 }
 impl TypesetObject {
     pub fn new(glyphs: Vec<Glyph>, start: Point, caret: Point) -> Self {
@@ -43,6 +47,7 @@ impl TypesetObject {
             start,
             glyphs,
             caret,
+            ..Default::default()
         }
     }
 }
@@ -53,9 +58,3 @@ pub struct Glyph {
     pos: Point,
     dim: Rect,
 }
-
-pub use fonts::{FontIndexer, Indexer};
-pub use geom::{Point, Rect};
-pub use renderer::TextRenderer;
-
-use self::fonts::{Family, FontStyle};

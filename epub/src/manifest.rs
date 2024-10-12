@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use crate::document::MediaType;
+use crate::element::MediaType;
 
 #[derive(Debug, Default)]
 pub struct Manifest {

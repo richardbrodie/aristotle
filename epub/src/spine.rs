@@ -11,7 +11,7 @@ impl Spine {
         self.itemrefs.iter().map(|i| i.as_ref())
     }
     pub fn next(&self, id: &str) -> Option<&str> {
-        let iter = self.itemrefs.iter().skip_while(|i| *i != id);
-        iter.skip(1).next().map(|s| s.as_ref())
+        let mut iter = self.itemrefs.iter().skip_while(|i| *i != id);
+        iter.nth(1).map(|s| s.as_ref())
     }
 }

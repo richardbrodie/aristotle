@@ -26,6 +26,7 @@ impl From<&str> for MediaType {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Element {
     id: String,
     title: Option<String>,

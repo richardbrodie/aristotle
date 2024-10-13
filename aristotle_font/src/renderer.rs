@@ -20,10 +20,6 @@ impl TextRenderer {
         }
     }
 
-    fn face(&self) {
-        //
-    }
-
     //pub fn config(&self) -> RenderingConfig {
     //    RenderingConfig {
     //        point_size: self.base_point_size,

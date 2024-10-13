@@ -1,4 +1,5 @@
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct Metadata {
     title: String,
     language: String,

@@ -8,3 +8,4 @@ softbuffer = { version = "0.4.5", default-features = false, features = ["kms", "
 winit = { version = "0.30.5", default-features = false, features = ["rwh_06", "wayland"] }
 
 aristotle_font = { path = "../aristotle_font" }
+epub = { path = "../epub" }

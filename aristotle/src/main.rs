@@ -1,6 +1,9 @@
 use std::num::NonZeroU32;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
+use aristotle_font::geom::Point;
+use epub::{Book, Element};
 use softbuffer::Surface;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -34,6 +37,9 @@ pub struct App {
     font_index: FontIndexer,
     text: Vec<TextObject>,
     typeset_text: Vec<TypesetObject>,
+    book_path: PathBuf,
+    book: Book,
+    cur_page: Option<Element>,
 }
 
 impl App {
@@ -55,37 +61,14 @@ impl App {
         let context = softbuffer::Context::new(window.clone()).unwrap();
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
-
-        self.text = vec![
-            TextObject {
-                raw_text: "Hello world, ".to_owned(),
-                ..Default::default()
-            },
-            TextObject {
-                raw_text: "some italics, ".to_owned(),
-                style: Some(FontStyle::Italic),
-                ..Default::default()
-            },
-            TextObject {
-                raw_text: "some bold, ".to_owned(),
-                style: Some(FontStyle::Bold),
-                ..Default::default()
-            },
-            TextObject {
-                raw_text: "even bold italic, ".to_owned(),
-                style: Some(FontStyle::BoldItalic),
-                ..Default::default()
-            },
-            TextObject {
-                raw_text: "then back to normal ".to_owned(),
-                ..Default::default()
-            },
-            TextObject {
-                raw_text: "but smaller".to_owned(),
-                size: Some(22.0),
-                ..Default::default()
-            },
-        ];
+    }
+    fn typeset(&mut self) {
+        let caret = Point::default();
+        self.typeset_text.clear();
+        for to in self.text.iter() {
+            let t = self.renderer.typeset(&to, caret).unwrap();
+            self.typeset_text.push(t);
+        }
     }
 }
 impl Default for App {
@@ -97,6 +80,8 @@ impl Default for App {
             height: 480,
             font: None,
         };
+        let path = Path::new("testfiles/epubs/pride_and_prejudice.epub");
+        let b = Book::new(path).unwrap();
         let glyphs = TextRenderer::new(&config);
         Self {
             window: None,
@@ -105,6 +90,9 @@ impl Default for App {
             text: vec![],
             typeset_text: vec![],
             font_index: indexer,
+            book_path: path.to_owned(),
+            book: b,
+            cur_page: None,
         }
     }
 }
@@ -145,32 +133,22 @@ impl ApplicationHandler for App {
                 }
                 Key::Named(NamedKey::Space) => {
                     if let Some(win) = self.window.as_ref() {
-                        let caret = self
-                            .typeset_text
-                            .last()
-                            .map(|l| l.caret)
-                            .unwrap_or_default();
-
-                        let to = &self.text[self.typeset_text.len()];
-                        let t = self.renderer.typeset(to, caret).unwrap();
-                        self.typeset_text.push(t);
+                        let next_page = match &self.cur_page {
+                            None => self.book.items().next(),
+                            Some(cur) => self.book.next_item(cur.id()),
+                        };
+                        self.cur_page = next_page;
+                        let content = self
+                            .book
+                            .content(self.cur_page.as_ref().unwrap().id())
+                            .unwrap();
+                        self.text.clear();
+                        self.text.push(TextObject {
+                            raw_text: content.raw_str().to_owned(),
+                            ..Default::default()
+                        });
                         win.request_redraw();
                     }
-                    //if let Some(win) = self.window.as_ref() {
-                    //    self.glyphs.set_text("hello");
-                    //    win.request_redraw();
-                    //}
-                    //if let Some(win) = self.window.as_ref() {
-                    //    let mut config = self.glyphs.config();
-                    //    if self.font == 0 {
-                    //        self.font = 1;
-                    //    } else {
-                    //        self.font = 0;
-                    //    }
-                    //    config.font_path = FONT_PATHS[self.font].to_owned();
-                    //    self.glyphs.update_config(&config);
-                    //    win.request_redraw();
-                    //}
                 }
                 Key::Named(NamedKey::Escape) => {
                     event_loop.exit();
@@ -187,9 +165,11 @@ impl ApplicationHandler for App {
                         .unwrap();
                     self.renderer
                         .set_buffer_size(new_size.width, new_size.height);
+                    self.typeset();
                 }
             }
             WindowEvent::RedrawRequested => {
+                self.typeset();
                 if let Some(window) = self.window.as_ref() {
                     let size = window.inner_size();
                     if let Some(surface) = self.surface.as_mut() {
@@ -211,8 +191,8 @@ impl ApplicationHandler for App {
                             });
                         }
 
-                        //surface_buffer.present().unwrap();
-                        event_loop.exit();
+                        surface_buffer.present().unwrap();
+                        //event_loop.exit();
                     }
                 }
             }

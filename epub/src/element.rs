@@ -42,6 +42,9 @@ impl Element {
             path: value.href().to_owned(),
         }
     }
+    pub fn id(&self) -> &str {
+        self.id.as_str()
+    }
     pub fn path(&self) -> Option<&str> {
         self.path.to_str()
     }

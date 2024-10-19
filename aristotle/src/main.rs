@@ -13,7 +13,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
 use aristotle_font::{
-    fonts::{Faces, FontIndexer, FontStyle, Indexer},
+    fonts::{Faces, FontIndexer, Indexer},
     renderer::TextRenderer,
     RenderingConfig, TextObject, TypesetObject,
 };
@@ -144,7 +144,7 @@ impl ApplicationHandler for App {
                             .unwrap();
                         self.text.clear();
                         self.text.push(TextObject {
-                            raw_text: content.raw_str().to_owned(),
+                            raw_text: content.content().unwrap().to_owned(),
                             ..Default::default()
                         });
                         win.request_redraw();

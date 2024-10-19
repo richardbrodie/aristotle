@@ -1,3 +1,6 @@
+use quick_xml::events::{BytesStart, Event};
+use quick_xml::Reader;
+
 use crate::Error;
 
 #[derive(Debug, Default)]
@@ -8,22 +11,40 @@ pub struct Reference {
     href: String,
 }
 impl Reference {
-    pub fn parse(node: roxmltree::Node<'_, '_>) -> Result<Reference, Error> {
+    pub fn parse(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Reference, Error> {
         let mut href = None;
         let mut ref_type = None;
         let mut title = None;
-        for attr in node.attributes() {
-            match attr.name() {
-                "href" => href = Some(attr.value().to_owned()),
-                "title" => title = Some(attr.value().to_owned()),
-                "type" => ref_type = Some(attr.value().to_owned()),
-                _ => {}
+
+        for attr in element.attributes() {
+            let attr = attr?;
+            match attr.key.as_ref() {
+                b"href" => {
+                    href = Some(
+                        attr.decode_and_unescape_value(reader.decoder())
+                            .map(|t| t.into_owned())?,
+                    )
+                }
+                b"type" => {
+                    ref_type = Some(
+                        attr.decode_and_unescape_value(reader.decoder())
+                            .map(|t| t.into_owned())?,
+                    )
+                }
+                b"title" => {
+                    title = Some(
+                        attr.decode_and_unescape_value(reader.decoder())
+                            .map(|t| t.into_owned())?,
+                    )
+                }
+                _ => (),
             }
         }
+
         Ok(Reference {
-            ref_type: ref_type.ok_or(Error::XmlField)?,
-            title: title.ok_or(Error::XmlField)?,
-            href: href.ok_or(Error::XmlField)?,
+            ref_type: ref_type.ok_or(Error::XmlField("type".into()))?,
+            title: title.ok_or(Error::XmlField("title".into()))?,
+            href: href.ok_or(Error::XmlField("href".into()))?,
         })
     }
 }
@@ -34,44 +55,65 @@ pub struct Guide {
     references: Vec<Reference>,
 }
 impl Guide {
-    pub fn extract(doc: &roxmltree::Document<'_>) -> Result<Option<Guide>, Error> {
-        let guide_node = doc.descendants().find(|n| n.has_tag_name("guide"));
-        if guide_node.is_none() {
-            return Ok(None);
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Option<Guide>, Error> {
+        let mut references = Vec::new();
+        loop {
+            match reader.read_event() {
+                Ok(Event::Start(ref e)) => {
+                    if e.name().as_ref() == b"reference" {
+                        references.push(Reference::parse(e, reader)?);
+                    }
+                }
+                Ok(Event::End(ref e)) if e.name().as_ref() == b"guide" => break,
+                Err(e) => return Err(e.into()),
+                _ => (),
+            }
         }
-
-        let references: Vec<_> = guide_node
-            .unwrap()
-            .children()
-            .filter(|node| node.has_tag_name("reference"))
-            .flat_map(Reference::parse)
-            .collect();
         Ok(Some(Guide { references }))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use quick_xml::events::Event;
+    use quick_xml::Reader;
+
     use super::Reference;
 
     #[test]
     fn reference_correct() {
-        let xml =
-            "<reference type='loi' title='List Of Illustrations' href='appendix.xhtml#figures' />";
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let n = doc.root_element();
-        let result = Reference::parse(n);
-        assert!(result.is_ok());
-        let r = result.unwrap();
-        assert_eq!(r.title, "List Of Illustrations");
+        let xml = r#"
+            <reference type='loi' title='List Of Illustrations' href='appendix.xhtml#figures' />
+        "#;
+        let mut reader = Reader::from_str(xml);
+        loop {
+            match reader.read_event() {
+                Ok(Event::Empty(ref e)) if e.name().as_ref() == b"reference" => {
+                    let result = Reference::parse(e, &mut reader).unwrap();
+                    assert_eq!(result.ref_type, "loi");
+                    assert_eq!(result.title, "List Of Illustrations");
+                }
+                Ok(Event::Eof) => break, // exits the loop when reaching end of file
+                _ => (),
+            }
+        }
     }
 
     #[test]
     fn reference_missing_field() {
-        let xml = "<reference title='List Of Illustrations' href='appendix.xhtml#figures' />";
-        let doc = roxmltree::Document::parse(xml).unwrap();
-        let n = doc.root_element();
-        let result = Reference::parse(n);
-        assert!(result.is_err());
+        let xml = r#"
+        <reference title='List Of Illustrations' href='appendix.xhtml#figures' />
+        "#;
+        let mut reader = Reader::from_str(xml);
+        loop {
+            match reader.read_event() {
+                Ok(Event::Empty(ref e)) if e.name().as_ref() == b"reference" => {
+                    let result = Reference::parse(e, &mut reader);
+                    assert!(result.is_err());
+                }
+                Ok(Event::Eof) => break, // exits the loop when reaching end of file
+                _ => (),
+            }
+        }
     }
 }

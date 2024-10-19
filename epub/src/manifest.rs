@@ -1,4 +1,8 @@
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+
+use quick_xml::events::{BytesStart, Event};
+use quick_xml::Reader;
 
 use crate::element::MediaType;
 use crate::Error;
@@ -8,30 +12,21 @@ pub struct Manifest {
     items: Vec<ManifestItem>,
 }
 impl Manifest {
-    pub fn extract(doc: &roxmltree::Document<'_>) -> Result<Manifest, Error> {
-        let manifest_node = doc
-            .descendants()
-            .find(|n| n.has_tag_name("manifest"))
-            .unwrap();
-
-        let items: Vec<_> = manifest_node
-            .children()
-            .filter(|node| node.has_tag_name("item"))
-            .map(|node| {
-                let mut href = String::new();
-                let mut mediatype = String::new();
-                let mut id = String::new();
-                for attr in node.attributes() {
-                    match attr.name() {
-                        "href" => href = attr.value().to_owned(),
-                        "id" => id = attr.value().to_owned(),
-                        "media-type" => mediatype = attr.value().to_owned(),
-                        _ => {}
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Manifest, Error> {
+        let mut items: Vec<ManifestItem> = Vec::new();
+        loop {
+            match reader.read_event() {
+                Ok(Event::Empty(ref e)) => {
+                    if e.name().as_ref() == b"item" {
+                        items.push(ManifestItem::extract(reader, e)?);
                     }
                 }
-                ManifestItem::new(mediatype, id, href)
-            })
-            .collect();
+                Ok(Event::End(ref e)) if e.name().as_ref() == b"manifest" => break,
+                Err(e) => return Err(e.into()),
+                _ => (),
+            }
+        }
+
         Ok(Manifest { items })
     }
     pub fn find(&self, id: &str) -> Option<&ManifestItem> {
@@ -46,20 +41,67 @@ pub struct ManifestItem {
     mediatype: String,
 }
 impl ManifestItem {
-    pub fn new(mediatype: String, id: String, href: String) -> Self {
-        Self {
-            id,
-            href: PathBuf::from(href),
-            mediatype,
+    fn extract(reader: &mut Reader<&[u8]>, element: &BytesStart) -> Result<Self, Error> {
+        let mut mediatype = Cow::Borrowed("");
+        let mut href = Cow::Borrowed("");
+        let mut id = Cow::Borrowed("");
+
+        for attr_result in element.attributes() {
+            let a = attr_result?;
+            match a.key.as_ref() {
+                b"href" => href = a.decode_and_unescape_value(reader.decoder())?,
+                b"id" => id = a.decode_and_unescape_value(reader.decoder())?,
+                b"media-type" => mediatype = a.decode_and_unescape_value(reader.decoder())?,
+                _ => (),
+            }
         }
+        Ok(Self {
+            id: id.into(),
+            mediatype: mediatype.into(),
+            href: PathBuf::from(href.into_owned()),
+        })
     }
     pub fn id(&self) -> &str {
         &self.id
     }
     pub fn href(&self) -> &Path {
-        Path::new(&self.href)
+        &self.href
     }
     pub fn mediatype(&self) -> MediaType {
         self.mediatype.as_str().into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use quick_xml::events::Event;
+    use quick_xml::Reader;
+
+    use super::Manifest;
+
+    #[test]
+    fn happy_path() {
+        let xml = r#"
+<?xml version='1.0' encoding='utf-8'?>
+  <manifest>
+    <item id="cover" href="cover.jpeg" media-type="image/jpeg"/>
+    <item id="titlepage" href="titlepage.xhtml" media-type="application/xhtml+xml"/>
+    <item id="id5" href="text/part0000.html" media-type="application/xhtml+xml"/>
+  </manifest>
+        "#;
+        let mut reader = Reader::from_str(xml);
+        loop {
+            match reader.read_event() {
+                Ok(Event::Start(ref e)) if e.name().as_ref() == b"manifest" => {
+                    let result = Manifest::extract(&mut reader).unwrap();
+                    assert_eq!(result.items.len(), 3);
+                    assert_eq!(result.items[0].id, "cover");
+                    assert_eq!(result.items[1].href.to_str().unwrap(), "titlepage.xhtml");
+                }
+                Ok(Event::Eof) => break, // exits the loop when reaching end of file
+                _ => (),
+            }
+        }
     }
 }

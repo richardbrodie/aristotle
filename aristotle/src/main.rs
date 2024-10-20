@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use aristotle_font::geom::Point;
+use aristotle_font::ContentElement;
 use epub::{Book, Element};
 use softbuffer::Surface;
 use winit::application::ApplicationHandler;
@@ -15,8 +16,12 @@ use winit::window::{Window, WindowId};
 use aristotle_font::{
     fonts::{Faces, FontIndexer, Indexer},
     renderer::TextRenderer,
-    RenderingConfig, TextObject, TypesetObject,
+    RenderingConfig, TypesetObject,
 };
+
+use self::text::convert_content;
+
+mod text;
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
@@ -35,7 +40,7 @@ pub struct App {
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     renderer: TextRenderer,
     font_index: FontIndexer,
-    text: Vec<TextObject>,
+    text: Vec<ContentElement>,
     typeset_text: Vec<TypesetObject>,
     book_path: PathBuf,
     book: Book,
@@ -63,10 +68,11 @@ impl App {
         self.window = Some(window);
     }
     fn typeset(&mut self) {
-        let caret = Point::default();
+        let mut caret = Point::default();
         self.typeset_text.clear();
         for to in self.text.iter() {
             let t = self.renderer.typeset(&to, caret).unwrap();
+            caret = t.caret;
             self.typeset_text.push(t);
         }
     }
@@ -75,7 +81,7 @@ impl Default for App {
     fn default() -> Self {
         let indexer = FontIndexer::new("testfiles");
         let config = RenderingConfig {
-            point_size: 24.0,
+            point_size: 18.0,
             width: 640,
             height: 480,
             font: None,
@@ -143,10 +149,10 @@ impl ApplicationHandler for App {
                             .content(self.cur_page.as_ref().unwrap().id())
                             .unwrap();
                         self.text.clear();
-                        self.text.push(TextObject {
-                            raw_text: content.content().unwrap().to_owned(),
-                            ..Default::default()
-                        });
+                        for ce in content.content() {
+                            let c = convert_content(ce);
+                            self.text.push(c);
+                        }
                         win.request_redraw();
                     }
                 }

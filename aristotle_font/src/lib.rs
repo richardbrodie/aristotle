@@ -25,6 +25,13 @@ pub struct RenderingConfig {
 #[allow(dead_code)]
 pub struct FontWeight(f32);
 
+#[derive(Clone, Debug)]
+pub enum ContentElement {
+    Text(TextObject),
+    Linebreak,
+    Paragraph,
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct TextObject {
     pub raw_text: String,

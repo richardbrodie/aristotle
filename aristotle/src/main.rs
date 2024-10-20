@@ -79,7 +79,7 @@ impl App {
 }
 impl Default for App {
     fn default() -> Self {
-        let indexer = FontIndexer::new("testfiles");
+        let indexer = FontIndexer::new("testfiles/fonts");
         let config = RenderingConfig {
             point_size: 18.0,
             width: 640,

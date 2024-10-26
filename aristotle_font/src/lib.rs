@@ -1,24 +1,29 @@
-pub mod builder;
 pub mod fonts;
 pub mod geom;
-pub mod renderer;
+pub mod raster;
+pub mod typeset;
 
+use fonts::FontStyle;
+use geom::{Point, Rect};
 use ttf_parser::GlyphId;
 
-use self::fonts::{Family, FontStyle};
-use self::geom::{Point, Rect};
+pub use typeset::{TypesetElement, Typesetter};
 
 #[derive(Clone, Debug)]
 pub enum Error {
-    Typeset,
+    MissingFace,
+    Raster,
+    PageOverflow,
+    ContentOverflow(usize),
 }
 
-#[derive(Debug)]
-pub struct RenderingConfig {
+#[derive(Debug, Default, Clone, Copy)]
+pub struct TypesetConfig {
     pub point_size: f32,
-    pub width: u32,
-    pub height: u32,
-    pub font: Option<Family>,
+    pub page_width: u32,
+    pub page_height: u32,
+    pub horizontal_margin: f32,
+    pub vertical_margin: f32,
 }
 
 #[derive(Clone, Default, Debug)]
@@ -38,26 +43,6 @@ pub struct TextObject {
     pub size: Option<f32>,
     pub style: Option<FontStyle>,
     pub weight: Option<FontWeight>,
-}
-
-#[derive(Clone, Default, Debug)]
-pub struct TypesetObject {
-    pub start: Point,
-    pub caret: Point,
-    pub glyphs: Vec<Glyph>,
-    pub size: Option<f32>,
-    pub style: Option<FontStyle>,
-    pub weight: Option<FontWeight>,
-}
-impl TypesetObject {
-    pub fn new(glyphs: Vec<Glyph>, start: Point, caret: Point) -> Self {
-        Self {
-            start,
-            glyphs,
-            caret,
-            ..Default::default()
-        }
-    }
 }
 
 #[derive(Clone, Default, Debug)]

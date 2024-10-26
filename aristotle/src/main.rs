@@ -2,8 +2,7 @@ use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use aristotle_font::geom::Point;
-use aristotle_font::ContentElement;
+use aristotle_font::{ContentElement, Error, TypesetConfig, Typesetter};
 use epub::{Book, Element};
 use softbuffer::Surface;
 use winit::application::ApplicationHandler;
@@ -13,11 +12,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-use aristotle_font::{
-    fonts::{Faces, FontIndexer, Indexer},
-    renderer::TextRenderer,
-    RenderingConfig, TypesetObject,
-};
+use aristotle_font::fonts::{FontIndexer, Indexer};
 
 use self::text::convert_content;
 
@@ -25,9 +20,9 @@ mod text;
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
-const _LONG: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
-
 fn main() {
+    let subscriber = tracing_subscriber::FmtSubscriber::new();
+    tracing::subscriber::set_global_default(subscriber).unwrap();
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
 
@@ -38,13 +33,13 @@ fn main() {
 pub struct App {
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    renderer: TextRenderer,
-    font_index: FontIndexer,
+    _font_index: FontIndexer,
     text: Vec<ContentElement>,
-    typeset_text: Vec<TypesetObject>,
-    book_path: PathBuf,
+    typesetter: Typesetter,
+    _book_path: PathBuf,
     book: Book,
     cur_page: Option<Element>,
+    typeset_config: TypesetConfig,
 }
 
 impl App {
@@ -54,51 +49,55 @@ impl App {
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
-        let fam = self.font_index.get_family("Vollkorn").unwrap();
-        let styles = fam.styles().fold(String::new(), |mut s, style| {
-            let f = format!(", {:?}", style);
-            s.push_str(&f);
-            s
-        });
-        println!("family: {}, styles: [{}]", fam.name, styles);
-        self.renderer.font = Some(fam);
 
         let context = softbuffer::Context::new(window.clone()).unwrap();
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
     }
     fn typeset(&mut self) {
-        let mut caret = Point::default();
-        self.typeset_text.clear();
-        for to in self.text.iter() {
-            let t = self.renderer.typeset(&to, caret).unwrap();
-            caret = t.caret;
-            self.typeset_text.push(t);
+        let t = &mut self.typesetter;
+        t.clear();
+        for (i, to) in self.text.iter().enumerate() {
+            match t.typeset(to) {
+                Err(Error::ContentOverflow(idx)) => {
+                    tracing::info!("element {} overflowed at char {}", i, idx);
+                    break;
+                }
+                Err(Error::PageOverflow) => {
+                    tracing::info!("filled page with element {}", i);
+                    break;
+                }
+                Err(e) => tracing::error!("typeset error: {:?}", e),
+                Ok(()) => (),
+            }
         }
     }
 }
 impl Default for App {
     fn default() -> Self {
         let indexer = FontIndexer::new("testfiles/fonts");
-        let config = RenderingConfig {
-            point_size: 18.0,
-            width: 640,
-            height: 480,
-            font: None,
-        };
+        let family = indexer.get_family("Vollkorn").unwrap();
         let path = Path::new("testfiles/epubs/pride_and_prejudice.epub");
-        let b = Book::new(path).unwrap();
-        let glyphs = TextRenderer::new(&config);
+        let book = Book::new(path).unwrap();
+        let cur_page = book.items().next();
+        let c = TypesetConfig {
+            point_size: 18.0,
+            page_width: 640,
+            page_height: 480,
+            horizontal_margin: 16.0,
+            vertical_margin: 16.0,
+        };
+        let typesetter = Typesetter::new(c, family).unwrap();
         Self {
             window: None,
             surface: None,
-            renderer: glyphs,
             text: vec![],
-            typeset_text: vec![],
-            font_index: indexer,
-            book_path: path.to_owned(),
-            book: b,
-            cur_page: None,
+            typesetter,
+            _font_index: indexer,
+            _book_path: path.to_owned(),
+            book,
+            cur_page,
+            typeset_config: c,
         }
     }
 }
@@ -139,17 +138,16 @@ impl ApplicationHandler for App {
                 }
                 Key::Named(NamedKey::Space) => {
                     if let Some(win) = self.window.as_ref() {
-                        let next_page = match &self.cur_page {
-                            None => self.book.items().next(),
-                            Some(cur) => self.book.next_item(cur.id()),
-                        };
-                        self.cur_page = next_page;
+                        if let Some(cur) = &self.cur_page {
+                            self.cur_page = self.book.next_item(cur.id());
+                            tracing::info!("cur page: {:?}", self.cur_page);
+                        }
                         let content = self
                             .book
                             .content(self.cur_page.as_ref().unwrap().id())
                             .unwrap();
                         self.text.clear();
-                        for ce in content.content() {
+                        for ce in content.content().iter() {
                             let c = convert_content(ce);
                             self.text.push(c);
                         }
@@ -169,12 +167,15 @@ impl ApplicationHandler for App {
                             NonZeroU32::new(new_size.height).unwrap(),
                         )
                         .unwrap();
-                    self.renderer
+                    self.typeset_config.page_width = new_size.width;
+                    self.typeset_config.page_height = new_size.height;
+                    self.typesetter
                         .set_buffer_size(new_size.width, new_size.height);
                     self.typeset();
                 }
             }
             WindowEvent::RedrawRequested => {
+                // TODO: don't run this every time
                 self.typeset();
                 if let Some(window) = self.window.as_ref() {
                     let size = window.inner_size();
@@ -188,17 +189,16 @@ impl ApplicationHandler for App {
                             }
                         }
 
-                        for to in self.typeset_text.iter() {
-                            let _ = self.renderer.raster(to, |x, y, z| {
+                        self.typesetter
+                            .raster(|x, y, z| {
                                 let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
-                                let idx =
-                                    x as usize + y as usize * self.renderer.canvas_width as usize;
+                                let idx = x as usize
+                                    + y as usize * self.typeset_config.page_width as usize;
                                 surface_buffer[idx] = surface_buffer[idx].min(c);
-                            });
-                        }
+                            })
+                            .unwrap();
 
                         surface_buffer.present().unwrap();
-                        //event_loop.exit();
                     }
                 }
             }

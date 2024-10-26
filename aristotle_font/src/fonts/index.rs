@@ -1,23 +1,29 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::fs::{self, DirEntry, ReadDir};
-use std::path::PathBuf;
+use std::fs::{self, ReadDir};
+use std::path::{Path, PathBuf};
 
 use ttf_parser::PlatformId;
 
-use super::family::{Face, Family, FontStyle};
+use super::face::Face;
+use super::{Family, FontStyle};
 
-pub struct Font {
+pub struct IndexedFont {
     pub path: PathBuf,
+    pub bytes: Vec<u8>,
     pub family: String,
     pub style: FontStyle,
 }
-impl Font {
-    fn new(entry: &DirEntry) -> Self {
-        let bytes = std::fs::read(entry.path()).unwrap();
+impl IndexedFont {
+    pub fn new<P>(entry: P) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        let bytes = std::fs::read(&entry).unwrap();
         let (family, subfamily) = read_font_metadata(&bytes);
         Self {
-            path: entry.path(),
+            path: entry.as_ref().to_owned(),
+            bytes,
             family,
             style: subfamily,
         }
@@ -30,11 +36,11 @@ pub trait Indexer {
 }
 
 pub struct FontIndexer {
-    fonts: HashMap<String, Vec<Font>>,
+    fonts: HashMap<String, Vec<IndexedFont>>,
 }
 impl FontIndexer {
     pub fn new(path: &str) -> Self {
-        let mut fonts: HashMap<String, Vec<Font>> = HashMap::new();
+        let mut fonts: HashMap<String, Vec<IndexedFont>> = HashMap::new();
         let scanner = IndexScanner::scan(path);
         scanner.for_each(|face| {
             let fc = face.family.clone();
@@ -78,7 +84,7 @@ impl IndexScanner {
     }
 }
 impl Iterator for IndexScanner {
-    type Item = Font;
+    type Item = IndexedFont;
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if self.files.is_none() && self.dirs.is_empty() {
@@ -92,7 +98,7 @@ impl Iterator for IndexScanner {
                             self.dirs.push(ep);
                             continue;
                         }
-                        return Some(Font::new(&entry));
+                        return Some(IndexedFont::new(entry.path()));
                     }
                     None => {
                         self.files = None;

@@ -17,8 +17,9 @@ impl Builder {
             rasteriser: ab_glyph_rasterizer::Rasterizer::new(0, 0),
         }
     }
-    pub fn reset(&mut self, w: f32, h: f32) {
-        self.rasteriser.reset(w as usize, h as usize);
+    pub fn reset(&mut self, w: usize, h: usize, o: f32) {
+        self.offset.x = o * self.scale;
+        self.rasteriser.reset(w, h);
     }
 }
 

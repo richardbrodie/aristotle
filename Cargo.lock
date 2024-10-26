@@ -71,6 +71,7 @@ dependencies = [
  "epub",
  "softbuffer",
  "tracing",
+ "tracing-subscriber",
  "winit",
 ]
 

@@ -25,10 +25,10 @@ impl Spine {
             }
         }
 
-        return Ok(Self {
+        Ok(Self {
             _toc: toc.ok_or(Error::XmlField("toc".into()))?,
             itemrefs,
-        });
+        })
     }
     pub fn items(&self) -> impl Iterator<Item = &str> {
         self.itemrefs.iter().map(|i| i.as_ref())

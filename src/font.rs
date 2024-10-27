@@ -7,18 +7,22 @@ use fonts::FontStyle;
 use geom::{Point, Rect};
 use ttf_parser::GlyphId;
 
-pub use typeset::{TypesetElement, Typesetter};
+pub use typeset::Typesetter;
+
+use self::fonts::Family;
 
 #[derive(Clone, Debug)]
-pub enum Error {
+pub enum FontError {
     MissingFace,
     Raster,
     PageOverflow,
     ContentOverflow(usize),
+    NoGlyph(char),
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct TypesetConfig {
+    pub family: Family,
     pub point_size: f32,
     pub page_width: u32,
     pub page_height: u32,
@@ -49,5 +53,5 @@ pub struct TextObject {
 pub struct Glyph {
     gid: GlyphId,
     pos: Point,
-    dim: Rect,
+    pub dim: Rect,
 }

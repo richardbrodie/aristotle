@@ -5,11 +5,12 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
-use crate::element::Element;
-use crate::guide::Guide;
-use crate::spine::Spine;
-use crate::{content::Content, cow_to_string, Error};
-use crate::{manifest::Manifest, metadata::Metadata};
+use super::content::Content;
+use super::guide::Guide;
+use super::manifest::Manifest;
+use super::metadata::Metadata;
+use super::spine::Spine;
+use super::{cow_to_string, Element, EpubError};
 
 #[allow(dead_code)]
 pub struct Book {
@@ -21,7 +22,7 @@ pub struct Book {
     guide: Option<Guide>,
 }
 impl Book {
-    pub fn new(p: &Path) -> Result<Self, Error> {
+    pub fn new(p: &Path) -> Result<Self, EpubError> {
         // open epub file
         let epub_file = File::open(p).unwrap();
         let mut epub = ZipArchive::new(epub_file).unwrap();
@@ -40,7 +41,7 @@ impl Book {
         let mut file_bytes = Vec::new();
         let mut contents_opf = epub
             .by_name(rootfile.to_str().unwrap())
-            .map_err(|_| Error::Zip)?;
+            .map_err(|_| EpubError::Zip)?;
         let _ = contents_opf.read_to_end(&mut file_bytes).unwrap();
         let file_contents = std::str::from_utf8(&file_bytes).unwrap();
         let mut reader = Reader::from_str(file_contents);
@@ -77,19 +78,19 @@ impl Book {
         Ok(Book {
             sourcefile: epub,
             contents_dir,
-            metadata: metadata.ok_or(Error::XmlField("metadata".into()))?,
-            manifest: manifest.ok_or(Error::XmlField("manifest".into()))?,
-            spine: spine.ok_or(Error::XmlField("spine".into()))?,
+            metadata: metadata.ok_or(EpubError::XmlField("metadata".into()))?,
+            manifest: manifest.ok_or(EpubError::XmlField("manifest".into()))?,
+            spine: spine.ok_or(EpubError::XmlField("spine".into()))?,
             guide,
         })
     }
-    fn read_document(&mut self, id: &str) -> Result<Vec<u8>, Error> {
+    fn read_document(&mut self, id: &str) -> Result<Vec<u8>, EpubError> {
         let mut file_bytes = Vec::new();
-        let mut z = self.sourcefile.by_name(id).map_err(|_| Error::Zip)?;
+        let mut z = self.sourcefile.by_name(id).map_err(|_| EpubError::Zip)?;
         if z.read_to_end(&mut file_bytes).is_ok() {
             return Ok(file_bytes);
         }
-        Err(Error::Zip)
+        Err(EpubError::Zip)
     }
     pub fn items(&self) -> impl Iterator<Item = Element> + '_ {
         self.spine
@@ -99,6 +100,16 @@ impl Book {
     }
     pub fn element(&self, id: &str) -> Option<Element> {
         self.manifest.find(id).map(Element::new)
+    }
+    pub fn prev_item(&self, id: &str) -> Option<Element> {
+        let mut e = None;
+        for n in self.spine.items() {
+            if n == id {
+                return e;
+            }
+            e = self.manifest.find(n).map(Element::new);
+        }
+        None
     }
     pub fn next_item(&self, id: &str) -> Option<Element> {
         self.spine
@@ -117,7 +128,7 @@ impl Book {
     }
 }
 
-fn find_rootfile(xml: &str) -> Result<PathBuf, Error> {
+fn find_rootfile(xml: &str) -> Result<PathBuf, EpubError> {
     let mut reader = Reader::from_str(xml);
     loop {
         match reader.read_event() {
@@ -131,7 +142,7 @@ fn find_rootfile(xml: &str) -> Result<PathBuf, Error> {
             _ => (), // There are several other `Event`s we do not consider here
         }
     }
-    Err(Error::File)
+    Err(EpubError::File)
 }
 
 #[cfg(test)]

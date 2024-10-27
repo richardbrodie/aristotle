@@ -4,15 +4,15 @@ use std::path::{Path, PathBuf};
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 
-use crate::element::MediaType;
-use crate::Error;
+use super::element::MediaType;
+use super::EpubError;
 
 #[derive(Debug, Default)]
 pub struct Manifest {
     items: Vec<ManifestItem>,
 }
 impl Manifest {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Manifest, Error> {
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Manifest, EpubError> {
         let mut items: Vec<ManifestItem> = Vec::new();
         loop {
             match reader.read_event() {
@@ -41,7 +41,7 @@ pub struct ManifestItem {
     mediatype: String,
 }
 impl ManifestItem {
-    fn extract(reader: &mut Reader<&[u8]>, element: &BytesStart) -> Result<Self, Error> {
+    fn extract(reader: &mut Reader<&[u8]>, element: &BytesStart) -> Result<Self, EpubError> {
         let mut mediatype = Cow::Borrowed("");
         let mut href = Cow::Borrowed("");
         let mut id = Cow::Borrowed("");

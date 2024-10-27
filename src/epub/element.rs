@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::manifest::ManifestItem;
+use super::manifest::ManifestItem;
 
 #[derive(Debug, Default)]
 pub enum MediaType {

@@ -1,7 +1,7 @@
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 
-use crate::Error;
+use super::EpubError;
 
 #[derive(Debug, Default)]
 #[allow(dead_code)]
@@ -11,7 +11,7 @@ pub struct Reference {
     href: String,
 }
 impl Reference {
-    pub fn parse(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Reference, Error> {
+    pub fn parse(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Reference, EpubError> {
         let mut href = None;
         let mut ref_type = None;
         let mut title = None;
@@ -42,9 +42,9 @@ impl Reference {
         }
 
         Ok(Reference {
-            ref_type: ref_type.ok_or(Error::XmlField("type".into()))?,
-            title: title.ok_or(Error::XmlField("title".into()))?,
-            href: href.ok_or(Error::XmlField("href".into()))?,
+            ref_type: ref_type.ok_or(EpubError::XmlField("type".into()))?,
+            title: title.ok_or(EpubError::XmlField("title".into()))?,
+            href: href.ok_or(EpubError::XmlField("href".into()))?,
         })
     }
 }
@@ -55,7 +55,7 @@ pub struct Guide {
     references: Vec<Reference>,
 }
 impl Guide {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Option<Guide>, Error> {
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Option<Guide>, EpubError> {
         let mut references = Vec::new();
         loop {
             match reader.read_event() {

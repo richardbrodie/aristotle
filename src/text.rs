@@ -1,8 +1,8 @@
-use aristotle_font::fonts::FontStyle;
-use aristotle_font::ContentElement;
-use aristotle_font::TextObject;
-use epub::ContentElement as EpubElement;
-use epub::TextStyle;
+use crate::epub::ContentElement as EpubElement;
+use crate::epub::TextStyle;
+use crate::font::fonts::FontStyle;
+use crate::font::ContentElement;
+use crate::font::TextObject;
 
 pub fn convert_content(elem: &EpubElement) -> ContentElement {
     match elem {

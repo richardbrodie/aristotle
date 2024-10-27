@@ -1,15 +1,14 @@
-use crate::fonts::{Faces, Family};
-use crate::typeset::TypesetElement;
-use crate::Error;
+use crate::font::fonts::{Faces, Family};
+use crate::font::typeset::Text;
+use crate::font::FontError;
 
 use super::builder::Builder;
 
-pub fn raster<F>(family: &Family, text: &TypesetElement, mut pix_func: F) -> Result<(), Error>
+pub fn raster<F>(family: &Family, text: &Text, mut pix_func: F) -> Result<(), FontError>
 where
     F: FnMut(u32, u32, u8),
 {
-    let style = text.style;
-    let face = family.get_face(style).ok_or(Error::MissingFace)?;
+    let face = family.get_face(text.style).ok_or(FontError::MissingFace)?;
     let scale_factor = face.scale_factor(text.point_size);
 
     let face = face.as_face();
@@ -27,7 +26,7 @@ where
                 let mut byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
 
                 //if there's no coverage just stop immediately
-                if !cfg!(debug_assertions) && byte == 0 {
+                if byte == 0 {
                     return;
                 }
 
@@ -45,28 +44,21 @@ where
                     return;
                 }
 
-                // invert so that more coverage means less fill
-                byte = 255 - byte;
-
-                // draw the bbox
-                //if cfg!(debug_assertions) && x == bbox_min_x as u32
-                //    || x == bbox_max_x as u32
-                //    || y == bbox_min_y as u32
-                //    || y == bbox_max_y as u32
-                //{
-                //    byte = 0;
-                //}
-
                 // don't draw white pixels inside the bbox either
-                if byte == 255 {
+                if byte == 0 {
                     return;
                 }
+
+                // invert so that more coverage means less fill
+                byte = 255 - byte;
 
                 // invert glyph along the y-axis
                 let y = h as u32 - y;
 
                 // translate xy coords to the glyph position
+                //let xoff = (og.x_min as f32 + min.x) * scale_factor;
                 let xoff = og.x_min as f32 * scale_factor;
+                //let xoff = min.x as f32 * scale_factor;
                 let x = x + (g.pos.x + xoff) as u32;
                 let y = y + g.pos.y as u32;
 
@@ -81,18 +73,19 @@ where
 mod tests {
     use ttf_parser::GlyphId;
 
-    use crate::fonts::{Family, FontStyle};
-    use crate::geom::{Point, Rect};
-    use crate::{Glyph, TypesetElement};
+    use crate::font::fonts::{Family, FontStyle};
+    use crate::font::geom::{Point, Rect};
+    use crate::font::typeset::Text;
+    use crate::font::Glyph;
 
     use super::raster;
 
     fn test_family(style: FontStyle) -> Family {
         let path = match style {
-            FontStyle::Regular => "../testfiles/fonts/vollkorn/Vollkorn-Regular.otf",
-            FontStyle::Italic => "../testfiles/fonts/vollkorn/Vollkorn-Italic.ttf",
-            FontStyle::Bold => "../testfiles/fonts/vollkorn/Vollkorn-Bold.ttf",
-            FontStyle::BoldItalic => "../testfiles/fonts/vollkorn/Vollkorn-BoldItalic.otf",
+            FontStyle::Regular => "testfiles/fonts/vollkorn/Vollkorn-Regular.otf",
+            FontStyle::Italic => "testfiles/fonts/vollkorn/Vollkorn-Italic.ttf",
+            FontStyle::Bold => "testfiles/fonts/vollkorn/Vollkorn-Bold.ttf",
+            FontStyle::BoldItalic => "testfiles/fonts/vollkorn/Vollkorn-BoldItalic.otf",
             FontStyle::Mono => "",
         };
         Family::from_font(path)
@@ -100,11 +93,7 @@ mod tests {
 
     #[test]
     fn regular_y() {
-        let t = TypesetElement {
-            caret: Point {
-                x: 92.64,
-                y: 33.432,
-            },
+        let t = Text {
             glyphs: vec![Glyph {
                 gid: GlyphId(588),
                 pos: Point {
@@ -121,7 +110,6 @@ mod tests {
             }],
             point_size: 18.0,
             style: FontStyle::Regular,
-            weight: None,
         };
         let fam = test_family(t.style);
         let r = raster(&fam, &t, |_, _, _| ());
@@ -130,11 +118,7 @@ mod tests {
 
     #[test]
     fn italic_y() {
-        let t = TypesetElement {
-            caret: Point {
-                x: 92.64,
-                y: 33.432,
-            },
+        let t = Text {
             glyphs: vec![
                 //},
                 Glyph {
@@ -154,7 +138,6 @@ mod tests {
             ],
             point_size: 18.0,
             style: FontStyle::Italic,
-            weight: None,
         };
         let fam = test_family(t.style);
         let r = raster(&fam, &t, |_, _, _| ());

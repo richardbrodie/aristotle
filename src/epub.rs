@@ -7,6 +7,7 @@ mod manifest;
 mod metadata;
 mod spine;
 
+pub use content::Content;
 use std::borrow::Cow;
 
 pub use book::Book;
@@ -14,7 +15,7 @@ pub use element::Element;
 use quick_xml::events::attributes::AttrError;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum EpubError {
     XmlDocument(quick_xml::Error),
     XmlField(String),
     XmlAttribute,
@@ -23,23 +24,24 @@ pub enum Error {
     StringParse,
     Content,
 }
-impl From<quick_xml::Error> for Error {
+impl From<quick_xml::Error> for EpubError {
     fn from(error: quick_xml::Error) -> Self {
         Self::XmlDocument(error)
     }
 }
 
-impl From<AttrError> for Error {
+impl From<AttrError> for EpubError {
     fn from(error: AttrError) -> Self {
         Self::XmlDocument(quick_xml::Error::InvalidAttr(error))
     }
 }
 
-fn cow_to_string(c: Cow<[u8]>) -> Result<String, Error> {
-    String::from_utf8(c.into_owned()).map_err(|_| Error::StringParse)
+fn cow_to_string(c: Cow<[u8]>) -> Result<String, EpubError> {
+    String::from_utf8(c.into_owned()).map_err(|_| EpubError::StringParse)
 }
-fn text_to_string(c: Result<Cow<str>, quick_xml::Error>) -> Result<String, Error> {
-    c.map(|i| i.into_owned()).map_err(|_| Error::StringParse)
+fn text_to_string(c: Result<Cow<str>, quick_xml::Error>) -> Result<String, EpubError> {
+    c.map(|i| i.into_owned())
+        .map_err(|_| EpubError::StringParse)
 }
 
 #[derive(Debug, Default, Clone, Copy)]

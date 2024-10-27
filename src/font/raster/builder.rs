@@ -1,4 +1,4 @@
-use crate::geom::Point;
+use crate::font::geom::Point;
 
 pub struct Builder {
     pos: Point,

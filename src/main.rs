@@ -1,9 +1,10 @@
+use std::cell::RefCell;
 use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use aristotle_font::{ContentElement, Error, TypesetConfig, Typesetter};
-use epub::{Book, Element};
+use epub::Book;
+use font::{TypesetConfig, Typesetter};
 use softbuffer::Surface;
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -12,11 +13,13 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-use aristotle_font::fonts::{FontIndexer, Indexer};
+use font::fonts::{FontIndexer, Indexer};
 
-use self::text::convert_content;
+use self::content::Content;
 
-mod text;
+mod content;
+mod epub;
+mod font;
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
@@ -31,15 +34,19 @@ fn main() {
 }
 
 pub struct App {
+    _font_index: FontIndexer,
+    _book_path: PathBuf,
+    // graphics
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    _font_index: FontIndexer,
-    text: Vec<ContentElement>,
-    typesetter: Typesetter,
-    _book_path: PathBuf,
-    book: Book,
-    cur_page: Option<Element>,
+    // text rendering
+    typesetter: Rc<RefCell<Typesetter>>,
     typeset_config: TypesetConfig,
+    // book content
+    book: Book,
+    cur_chapter: Option<epub::Element>,
+    cur_page: usize,
+    content: Content,
 }
 
 impl App {
@@ -54,50 +61,53 @@ impl App {
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
     }
-    fn typeset(&mut self) {
-        let t = &mut self.typesetter;
-        t.clear();
-        for (i, to) in self.text.iter().enumerate() {
-            match t.typeset(to) {
-                Err(Error::ContentOverflow(idx)) => {
-                    tracing::info!("element {} overflowed at char {}", i, idx);
-                    break;
-                }
-                Err(Error::PageOverflow) => {
-                    tracing::info!("filled page with element {}", i);
-                    break;
-                }
-                Err(e) => tracing::error!("typeset error: {:?}", e),
-                Ok(()) => (),
-            }
-        }
-    }
+    //fn typeset(&mut self) {
+    //    let t = &mut self.typesetter;
+    //    t.clear();
+    //    for (i, to) in self.text.iter().enumerate() {
+    //        match t.typeset(to) {
+    //            Err(FontError::ContentOverflow(idx)) => {
+    //                tracing::info!("element {} overflowed at char {}", i, idx);
+    //                break;
+    //            }
+    //            Err(FontError::PageOverflow) => {
+    //                tracing::info!("filled page with element {}", i);
+    //                break;
+    //            }
+    //            Err(e) => tracing::error!("typeset error: {:?}", e),
+    //            Ok(()) => (),
+    //        }
+    //    }
+    //}
 }
 impl Default for App {
     fn default() -> Self {
         let indexer = FontIndexer::new("testfiles/fonts");
         let family = indexer.get_family("Vollkorn").unwrap();
-        let path = Path::new("testfiles/epubs/pride_and_prejudice.epub");
+        let path = Path::new("testfiles/epubs/frankenstein.epub");
         let book = Book::new(path).unwrap();
-        let cur_page = book.items().next();
         let c = TypesetConfig {
+            family,
             point_size: 18.0,
             page_width: 640,
             page_height: 480,
             horizontal_margin: 16.0,
             vertical_margin: 16.0,
         };
-        let typesetter = Typesetter::new(c, family).unwrap();
+        let typesetter = Rc::new(RefCell::new(Typesetter::new(&c).unwrap()));
+        let cur_chapter = book.items().next();
+
         Self {
-            window: None,
-            surface: None,
-            text: vec![],
-            typesetter,
             _font_index: indexer,
             _book_path: path.to_owned(),
-            book,
-            cur_page,
+            window: None,
+            surface: None,
+            typesetter: Rc::clone(&typesetter),
             typeset_config: c,
+            book,
+            cur_chapter,
+            cur_page: 0,
+            content: Content::new(typesetter),
         }
     }
 }
@@ -136,21 +146,56 @@ impl ApplicationHandler for App {
                         //win.request_redraw();
                     }
                 }
-                Key::Named(NamedKey::Space) => {
+                //Key::Named(NamedKey::Space) => {
+                //    tracing::info!("cur chapter: {:?}", self.cur_chapter);
+                //    if let Some(cur) = &self.cur_chapter {
+                //        self.cur_chapter = self.book.next_item(cur.id());
+                //        tracing::info!("new chapter: {:?}", self.cur_chapter);
+                //    }
+                //    let content = self
+                //        .book
+                //        .content(self.cur_chapter.as_ref().unwrap().id())
+                //        .unwrap();
+                //    self.content.set_content(content);
+                //    if let Some(win) = self.window.as_ref() {
+                //        win.request_redraw();
+                //    }
+                //}
+                Key::Named(NamedKey::ArrowLeft) => {
+                    if self.content.len() > 0 && self.cur_page > 0 {
+                        // more pages left
+                        self.cur_page -= 1;
+                    } else {
+                        // first page so get new content
+                        if let Some(cur) = &self.cur_chapter {
+                            self.cur_chapter = self.book.prev_item(cur.id());
+                            if let Some(cur) = &self.cur_chapter {
+                                let content = self.book.content(cur.id()).unwrap();
+                                self.content.set_content(content);
+                                self.cur_page = self.content.len() - 1;
+                            }
+                        }
+                    }
                     if let Some(win) = self.window.as_ref() {
-                        if let Some(cur) = &self.cur_page {
-                            self.cur_page = self.book.next_item(cur.id());
-                            tracing::info!("cur page: {:?}", self.cur_page);
+                        win.request_redraw();
+                    }
+                }
+                Key::Named(NamedKey::ArrowRight) => {
+                    if self.content.len() > 0 && self.cur_page < self.content.len() - 1 {
+                        // more pages left
+                        self.cur_page += 1;
+                    } else {
+                        // last page so get new content
+                        if let Some(cur) = &self.cur_chapter {
+                            self.cur_chapter = self.book.next_item(cur.id());
+                            if let Some(cur) = &self.cur_chapter {
+                                let content = self.book.content(cur.id()).unwrap();
+                                self.content.set_content(content);
+                                self.cur_page = 0;
+                            }
                         }
-                        let content = self
-                            .book
-                            .content(self.cur_page.as_ref().unwrap().id())
-                            .unwrap();
-                        self.text.clear();
-                        for ce in content.content().iter() {
-                            let c = convert_content(ce);
-                            self.text.push(c);
-                        }
+                    }
+                    if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }
                 }
@@ -170,13 +215,14 @@ impl ApplicationHandler for App {
                     self.typeset_config.page_width = new_size.width;
                     self.typeset_config.page_height = new_size.height;
                     self.typesetter
+                        .borrow_mut()
                         .set_buffer_size(new_size.width, new_size.height);
-                    self.typeset();
+                    if self.cur_page > 0 {
+                        self.content.typeset().unwrap();
+                    }
                 }
             }
             WindowEvent::RedrawRequested => {
-                // TODO: don't run this every time
-                self.typeset();
                 if let Some(window) = self.window.as_ref() {
                     let size = window.inner_size();
                     if let Some(surface) = self.surface.as_mut() {
@@ -189,14 +235,15 @@ impl ApplicationHandler for App {
                             }
                         }
 
-                        self.typesetter
-                            .raster(|x, y, z| {
+                        if let Some(page) = self.content.page(self.cur_page) {
+                            let wid = self.typeset_config.page_width as usize;
+                            page.raster(&self.typeset_config.family, |x, y, z| {
                                 let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
-                                let idx = x as usize
-                                    + y as usize * self.typeset_config.page_width as usize;
+                                let idx = x as usize + y as usize * wid;
                                 surface_buffer[idx] = surface_buffer[idx].min(c);
                             })
                             .unwrap();
+                        }
 
                         surface_buffer.present().unwrap();
                     }

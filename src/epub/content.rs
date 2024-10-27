@@ -3,7 +3,7 @@ use std::borrow::Borrow;
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use crate::{ContentElement, TextElement, TextStyle};
+use super::{ContentElement, TextElement, TextStyle};
 
 #[derive(Debug, Default)]
 pub struct Content {
@@ -36,15 +36,10 @@ fn paragraphs(reader: &mut Reader<&[u8]>) -> Vec<ContentElement> {
     loop {
         match reader.read_event() {
             Ok(Event::Start(ref e)) => match e.name().as_ref() {
-                b"div" | b"p" => {
-                    elements.push(ContentElement::Paragraph);
-                }
-                b"i" => {
-                    element.style = TextStyle::Italic;
-                }
-                b"b" => {
-                    element.style = TextStyle::Bold;
-                }
+                b"div" | b"p" => elements.push(ContentElement::Paragraph),
+                b"tr" => elements.push(ContentElement::Linebreak),
+                b"i" => element.style = TextStyle::Italic,
+                b"b" | b"strong" => element.style = TextStyle::Bold,
                 _ => (),
             },
             Ok(Event::End(ref e)) => match e.name().as_ref() {
@@ -84,7 +79,7 @@ mod tests {
     use quick_xml::events::Event;
     use quick_xml::Reader;
 
-    use crate::ContentElement;
+    use super::ContentElement;
 
     use super::paragraphs;
 

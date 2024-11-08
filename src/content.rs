@@ -9,6 +9,7 @@ use crate::font::fonts::Family;
 use crate::font::fonts::FontStyle;
 use crate::font::raster::raster;
 use crate::font::typeset::Element;
+use crate::font::typeset::TResult;
 use crate::font::typeset::Text;
 use crate::font::FontError;
 use crate::font::TextObject;
@@ -83,29 +84,35 @@ impl Content {
                 EpubElement::Inline(i) => {
                     let to = convert(i);
                     match t.text(c, &to) {
-                        Err(FontError::ContentOverflow(i)) => {
-                            tracing::info!("i: element overflowed at char {}", i);
-                            let (to1, to2) = split(&to, i);
-                            let Ok(Element { text, .. }) = t.text(c, &to1) else {
-                                tracing::error!("failed to split an overflowing element");
-                                panic!();
-                            };
-                            p.text_elements.push(text);
+                        TResult::Overflow {
+                            processed,
+                            remainder,
+                        } => {
+                            tracing::info!(
+                                "i: element overflowed at char {}",
+                                to.raw_text.len() - remainder.len()
+                            );
+                            p.text_elements.push(processed.text);
                             self.pages.push(p);
                             p = Page::default();
                             c = t.new_caret();
-                            let Ok(Element { caret, text }) = t.text(c, &to2) else {
+                            let to1 = TextObject {
+                                raw_text: remainder.trim().to_owned(),
+                                style: to.style,
+                                ..Default::default()
+                            };
+                            let TResult::Ok(Element { text, caret }) = t.text(c, &to1) else {
                                 tracing::error!("failed to split an overflowing element");
                                 panic!();
                             };
                             c = caret;
                             p.text_elements.push(text);
                         }
-                        Err(e) => {
+                        TResult::Error(e) => {
                             tracing::error!("{:?}", e);
                             panic!()
                         }
-                        Ok(Element { caret, text }) => {
+                        TResult::Ok(Element { caret, text }) => {
                             c = caret;
                             p.text_elements.push(text)
                         }
@@ -114,14 +121,20 @@ impl Content {
                 EpubElement::Heading(i) => {
                     let to = convert(i);
                     match t.heading(c, &to) {
-                        Err(FontError::ContentOverflow(i)) => {
-                            tracing::info!("h: element overflowed at char {}", i);
+                        TResult::Overflow {
+                            processed: _,
+                            remainder,
+                        } => {
+                            tracing::info!(
+                                "h: element overflowed at char {}",
+                                to.raw_text.len() - remainder.len()
+                            );
                         }
-                        Err(e) => {
+                        TResult::Error(e) => {
                             tracing::error!("{:?}", e);
                             panic!()
                         }
-                        Ok(Element { caret, text }) => {
+                        TResult::Ok(Element { caret, text }) => {
                             c = caret;
                             p.text_elements.push(text)
                         }

@@ -1,4 +1,4 @@
-use crate::font::fonts::{Faces, Family};
+use crate::font::fonts::Family;
 use crate::font::typeset::Text;
 use crate::font::FontError;
 
@@ -8,10 +8,10 @@ pub fn raster<F>(family: &Family, text: &Text, mut pix_func: F) -> Result<(), Fo
 where
     F: FnMut(u32, u32, u8),
 {
-    let face = family.get_face(text.style).ok_or(FontError::MissingFace)?;
+    let face = family.face(text.style)?;
     let scale_factor = face.scale_factor(text.point_size);
 
-    let face = face.as_face();
+    let face = face.as_ttf_face()?;
 
     let mut builder = Builder::new(face.descender(), scale_factor);
     for g in text.glyphs.iter() {
@@ -70,7 +70,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use ttf_parser::GlyphId;
 
     use crate::font::fonts::{Family, FontStyle};
@@ -80,7 +80,7 @@ mod tests {
 
     use super::raster;
 
-    fn test_family(style: FontStyle) -> Family {
+    pub fn test_family(style: FontStyle) -> Family {
         let path = match style {
             FontStyle::Regular => "testfiles/fonts/vollkorn/Vollkorn-Regular.otf",
             FontStyle::Italic => "testfiles/fonts/vollkorn/Vollkorn-Italic.ttf",

@@ -2,27 +2,28 @@ mod book;
 mod content;
 mod element;
 mod guide;
-//mod index;
+mod index;
 mod manifest;
 mod metadata;
 mod spine;
 
 pub use content::Content;
 use std::borrow::Cow;
+use zip::result::ZipError;
 
 pub use book::Book;
-pub use element::Element;
+pub use index::Item;
 use quick_xml::events::attributes::AttrError;
 
 #[derive(Debug)]
 pub enum EpubError {
     XmlDocument(quick_xml::Error),
     XmlField(String),
+    Zipfile(ZipError),
     XmlAttribute,
     File,
-    Zip,
     StringParse,
-    Content,
+    NoContent,
 }
 impl From<quick_xml::Error> for EpubError {
     fn from(error: quick_xml::Error) -> Self {
@@ -33,6 +34,12 @@ impl From<quick_xml::Error> for EpubError {
 impl From<AttrError> for EpubError {
     fn from(error: AttrError) -> Self {
         Self::XmlDocument(quick_xml::Error::InvalidAttr(error))
+    }
+}
+
+impl From<ZipError> for EpubError {
+    fn from(error: ZipError) -> Self {
+        Self::Zipfile(error)
     }
 }
 

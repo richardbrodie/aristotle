@@ -1,0 +1,19 @@
+- general
+    - better config handling for typesetter and rest
+    - use &str everywhere
+    - more tests
+
+- book
+    - index refactor
+    - don't need to store all the spec types
+    - redesign html tokenization
+    - handle two chapters in one xhtml file
+
+- typesetter
+    - fix bottom margin
+    - heading centre align
+    - justify text
+    - track previous token
+    - remove refcell around Typesetter
+    - is it possible to avoid typesetting the whole chapter?
+    - harfbuzz

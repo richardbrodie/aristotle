@@ -1,6 +1,6 @@
 use ttf_parser::{Face, GlyphId};
 
-use super::fonts::{Faces, FontStyle};
+use super::fonts::FontStyle;
 use super::geom::{Point, Rect};
 use super::{FontError, Glyph, TextObject, TypesetConfig};
 
@@ -21,6 +21,7 @@ pub struct Typesetter {
     scaled_height: f32,
     space_width: f32,
     params: TypesetConfig,
+    // family: Family,
 }
 
 pub enum TResult<'a> {
@@ -39,15 +40,9 @@ pub enum TResult<'a> {
 
 impl Typesetter {
     pub fn new(config: &TypesetConfig) -> Result<Self, FontError> {
-        let font = config
-            .family
-            .get_face(FontStyle::Regular)
-            .ok_or(FontError::MissingFace)?;
-        let face = font.as_face();
-        let scale_factor = font.scale_factor(config.point_size);
-        let scaled_height = face.height() as f32 * scale_factor;
-        let gid = face.glyph_index(' ').ok_or(FontError::MissingFace)?;
-        let advance = face.glyph_hor_advance(gid).unwrap() as f32 * scale_factor;
+        let face = config.family.face(FontStyle::default())?;
+        let scaled_height = face.scaled_height(config.point_size)?;
+        let advance = face.space_width(config.point_size)?;
         tracing::info!(
             "initial page dims: {}x{}",
             config.page_width,
@@ -57,24 +52,35 @@ impl Typesetter {
             scaled_height,
             space_width: advance,
             params: config.to_owned(),
+            // family,
         })
     }
 
-    pub fn set_buffer_size(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
         tracing::info!("new page dims: {}x{}", width, height);
         self.params.page_width = width;
         self.params.page_height = height;
     }
 
     pub fn new_caret(&self) -> Point {
-        Point::new(self.params.horizontal_margin, self.params.vertical_margin)
+        Point::new(
+            self.params.horizontal_margin.into(),
+            self.params.vertical_margin.into(),
+        )
+    }
+
+    pub fn line_height(&self) -> f32 {
+        self.scaled_height
     }
 
     pub fn linebreak(&self, caret: Point) -> Result<Point, FontError> {
         if self.overflows_vertically(caret) {
             return Err(FontError::PageOverflow);
         }
-        let new_caret = Point::new(self.params.horizontal_margin, caret.y + self.scaled_height);
+        let new_caret = Point::new(
+            self.params.horizontal_margin.into(),
+            caret.y + self.scaled_height,
+        );
         Ok(new_caret)
     }
 
@@ -84,20 +90,18 @@ impl Typesetter {
         }
         let hadv = self.params.page_width as f32 * 0.03;
         let new_caret = Point::new(
-            self.params.horizontal_margin + hadv,
+            self.params.horizontal_margin as f32 + hadv,
             caret.y + self.scaled_height,
         );
         Ok(new_caret)
     }
 
-    //pub fn heading(&self, caret: Point, t: &TextObject) -> Result<Element, FontError> {
     pub fn heading<'a>(&'a self, caret: Point, t: &'a TextObject) -> TResult<'a> {
         let style = FontStyle::Bold;
         let size = t.size.unwrap_or(self.params.point_size);
         self.typeset(caret, &t.raw_text, size, style)
     }
 
-    //pub fn text(&self, caret: Point, t: &TextObject) -> Result<Element, FontError> {
     pub fn text<'a>(&'a self, caret: Point, t: &'a TextObject) -> TResult<'a> {
         let style = t.style.unwrap_or(FontStyle::Regular);
         let size = t.size.unwrap_or(self.params.point_size);
@@ -111,15 +115,9 @@ impl Typesetter {
         size: f32,
         style: FontStyle,
     ) -> TResult<'a> {
-        let font = self
-            .params
-            .family
-            .get_face(style)
-            .ok_or(FontError::MissingFace)
-            //.map_err(|e| TResult::Error(e))
-            .unwrap();
+        let font = self.params.family.face(style).unwrap();
         let scale_factor = font.scale_factor(size);
-        let face = font.as_face();
+        let face = font.as_ttf_face().unwrap();
 
         // face metrics
         let desc = face.descender() as f32;
@@ -174,10 +172,13 @@ impl Typesetter {
                     let res = &text[last_committed_character..];
                     return TResult::Overflow {
                         processed: e,
-                        remainder: &res,
+                        remainder: res,
                     };
                 }
-                caret = Point::new(self.params.horizontal_margin, caret.y + self.scaled_height);
+                caret = Point::new(
+                    self.params.horizontal_margin.into(),
+                    caret.y + self.scaled_height,
+                );
                 for g in word_buffer.iter_mut() {
                     g.pos = caret;
                     caret.x += g.dim.max.x * scale_factor;
@@ -202,7 +203,7 @@ impl Typesetter {
         // add last word
         t.glyphs.append(&mut word_buffer);
 
-        return TResult::Ok(Element { caret, text: t });
+        TResult::Ok(Element { caret, text: t })
     }
 
     fn kern(face: &Face, left: Option<GlyphId>, right: GlyphId) -> f32 {
@@ -227,10 +228,11 @@ impl Typesetter {
     }
 
     fn overflows_horizontally(&self, caret: Point, hadv: f32) -> bool {
-        caret.x + hadv + self.params.horizontal_margin > self.params.page_width as f32
+        caret.x + hadv + self.params.horizontal_margin as f32 > self.params.page_width as f32
     }
 
     fn overflows_vertically(&self, caret: Point) -> bool {
-        caret.y + self.scaled_height + self.params.vertical_margin >= self.params.page_height as f32
+        caret.y + self.scaled_height + self.params.vertical_margin as f32
+            >= self.params.page_height as f32
     }
 }

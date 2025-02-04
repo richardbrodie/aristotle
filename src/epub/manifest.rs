@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::path::{Path, PathBuf};
 
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
@@ -9,7 +8,7 @@ use super::EpubError;
 
 #[derive(Debug, Default)]
 pub struct Manifest {
-    items: Vec<ManifestItem>,
+    pub items: Vec<ManifestItem>,
 }
 impl Manifest {
     pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Manifest, EpubError> {
@@ -37,7 +36,7 @@ impl Manifest {
 #[derive(Debug, Default)]
 pub struct ManifestItem {
     id: String,
-    href: PathBuf,
+    href: String,
     mediatype: String,
 }
 impl ManifestItem {
@@ -58,13 +57,13 @@ impl ManifestItem {
         Ok(Self {
             id: id.into(),
             mediatype: mediatype.into(),
-            href: PathBuf::from(href.into_owned()),
+            href: href.into(),
         })
     }
     pub fn id(&self) -> &str {
         &self.id
     }
-    pub fn href(&self) -> &Path {
+    pub fn href(&self) -> &str {
         &self.href
     }
     pub fn mediatype(&self) -> MediaType {
@@ -97,7 +96,7 @@ mod tests {
                     let result = Manifest::extract(&mut reader).unwrap();
                     assert_eq!(result.items.len(), 3);
                     assert_eq!(result.items[0].id, "cover");
-                    assert_eq!(result.items[1].href.to_str().unwrap(), "titlepage.xhtml");
+                    assert_eq!(result.items[1].href, "titlepage.xhtml");
                 }
                 Ok(Event::Eof) => break, // exits the loop when reaching end of file
                 _ => (),

@@ -6,7 +6,7 @@ use super::EpubError;
 #[derive(Debug, Default)]
 pub struct Spine {
     _toc: String,
-    itemrefs: Vec<String>,
+    pub itemrefs: Vec<String>,
 }
 impl Spine {
     pub fn extract(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Spine, EpubError> {

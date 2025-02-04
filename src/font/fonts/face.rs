@@ -1,5 +1,6 @@
-use super::index::IndexedFont;
-use super::FontStyle;
+use crate::font::FontError;
+
+use super::{index::IndexedFont, style::FontStyle};
 
 #[derive(Default, Clone, Debug)]
 pub struct Face {
@@ -29,7 +30,20 @@ impl Face {
         px_per_em / self.units_per_em
     }
 
-    pub fn as_face(&self) -> ttf_parser::Face {
-        ttf_parser::Face::parse(&self.bytes, 0).unwrap()
+    pub fn scaled_height(&self, point_size: f32) -> Result<f32, FontError> {
+        let scale = self.scale_factor(point_size);
+        self.as_ttf_face().map(|face| scale * face.height() as f32)
+    }
+    pub fn space_width(&self, point_size: f32) -> Result<f32, FontError> {
+        let scale = self.scale_factor(point_size);
+        let face = self.as_ttf_face()?;
+        let gid = face.glyph_index(' ').ok_or(FontError::TtfParse)?;
+        face.glyph_hor_advance(gid)
+            .ok_or(FontError::TtfParse)
+            .map(|adv| adv as f32 * scale)
+    }
+
+    pub fn as_ttf_face(&self) -> Result<ttf_parser::Face, FontError> {
+        ttf_parser::Face::parse(&self.bytes, 0).map_err(|_| FontError::TtfParse)
     }
 }

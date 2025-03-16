@@ -1,59 +1,42 @@
-use quick_xml::events::{BytesStart, Event};
-use quick_xml::Reader;
+use quick_xml::{events::Event, Reader};
 
-use super::EpubError;
+use super::error::ContentError;
 
 #[derive(Debug, Default)]
 pub struct Spine {
-    _toc: String,
-    pub itemrefs: Vec<String>,
+    pub items: Vec<String>,
 }
 impl Spine {
-    pub fn extract(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Spine, EpubError> {
-        let toc = Some(find_attribute(element, reader, b"toc")?);
-        let mut itemrefs = Vec::new();
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, ContentError> {
+        let mut depth = 1;
+        let mut spine = Self::default();
         loop {
             match reader.read_event() {
-                Ok(Event::Empty(ref e)) => {
-                    if e.name().as_ref() == b"itemref" {
-                        itemrefs.push(find_attribute(e, reader, b"idref")?);
+                Ok(Event::Empty(ref e)) if e.name().as_ref() == b"itemref" => {
+                    for attr in e.attributes() {
+                        let Ok(attr) = attr else {
+                            continue;
+                        };
+                        if attr.key.as_ref() == b"idref" {
+                            if let Ok(val) = attr.unescape_value() {
+                                spine.items.push(val.into_owned());
+                            }
+                        }
                     }
                 }
-                Ok(Event::End(ref e)) if e.name().as_ref() == b"spine" => break,
+                Ok(Event::End(_)) => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
                 Err(e) => return Err(e.into()),
-                _ => (),
+                _ => {}
             }
         }
-
-        Ok(Self {
-            _toc: toc.ok_or(EpubError::XmlField("toc".into()))?,
-            itemrefs,
-        })
+        Ok(spine)
     }
-    pub fn items(&self) -> impl Iterator<Item = &str> {
-        self.itemrefs.iter().map(|i| i.as_ref())
-    }
-    pub fn next(&self, id: &str) -> Option<&str> {
-        let mut iter = self.itemrefs.iter().skip_while(|i| *i != id);
-        iter.nth(1).map(|s| s.as_ref())
-    }
-}
-
-fn find_attribute(
-    element: &BytesStart,
-    reader: &mut Reader<&[u8]>,
-    key: &[u8],
-) -> Result<String, EpubError> {
-    for attr in element.attributes() {
-        let attr = attr?;
-        if attr.key.as_ref() == key {
-            return attr
-                .decode_and_unescape_value(reader.decoder())
-                .map(|t| t.into_owned())
-                .map_err(Into::into);
-        }
-    }
-    Err(EpubError::XmlAttribute)
 }
 
 #[cfg(test)]
@@ -79,33 +62,8 @@ mod tests {
         loop {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"spine" => {
-                    let result = Spine::extract(e, &mut reader).unwrap();
-                    assert_eq!(result._toc, "ncx");
-                    assert_eq!(result.itemrefs.len(), 4);
-                }
-                Ok(Event::Eof) => break, // exits the loop when reaching end of file
-                _ => (),
-            }
-        }
-    }
-
-    #[test]
-    fn missing_toc() {
-        let xml = r#"
-<?xml version='1.0' encoding='utf-8'?>
-  <spine tok="ncx">
-    <itemref idref="titlepage"/>
-    <itemref idref="id5"/>
-    <itemref idref="id6"/>
-    <itemref idref="id7"/>
-  </spine>
-        "#;
-        let mut reader = Reader::from_str(xml);
-        loop {
-            match reader.read_event() {
-                Ok(Event::Start(ref e)) if e.name().as_ref() == b"spine" => {
-                    let result = Spine::extract(e, &mut reader);
-                    assert!(result.is_err());
+                    let result = Spine::extract(&mut reader).unwrap();
+                    assert_eq!(result.items.len(), 4);
                 }
                 Ok(Event::Eof) => break, // exits the loop when reaching end of file
                 _ => (),
@@ -128,8 +86,8 @@ mod tests {
         loop {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"spine" => {
-                    let result = Spine::extract(e, &mut reader);
-                    assert!(result.is_err());
+                    let result = Spine::extract(&mut reader).unwrap();
+                    assert_eq!(result.items.len(), 3);
                 }
                 Ok(Event::Eof) => break, // exits the loop when reaching end of file
                 _ => (),

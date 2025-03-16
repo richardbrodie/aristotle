@@ -1,59 +1,51 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use serde::Deserialize;
 
-use super::{text_to_string, EpubError};
+use super::error::ContentError;
 
-#[derive(Debug, Default)]
-#[allow(dead_code)]
+#[derive(Debug, Default, Deserialize)]
 pub struct Metadata {
-    title: String,
-    language: String,
-    identifier: String,
+    title: Option<String>,
+    language: Option<String>,
     author: Option<String>,
+    identifier: Option<String>,
     published: Option<String>,
 }
-impl Metadata {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, EpubError> {
-        let mut title = None;
-        let mut language = None;
-        let mut identifier = None;
-        let mut author = None;
-        let mut published = None;
 
+impl Metadata {
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, ContentError> {
+        let mut depth = 1;
+        let mut metadata = Self::default();
         loop {
             match reader.read_event() {
-                Ok(Event::Start(ref e)) => match e.name().local_name().as_ref() {
-                    b"title" => {
-                        title = Some(text_to_string(reader.read_text(e.name()))?);
+                Ok(Event::Start(ref e)) => {
+                    depth += 1;
+                    let key = e.name().local_name();
+                    if let Ok(Event::Text(text)) = reader.read_event() {
+                        let value = std::str::from_utf8(&text).map(ToOwned::to_owned).ok();
+                        match key.as_ref() {
+                            b"title" => metadata.title = value,
+                            b"language" => metadata.language = value,
+                            b"identifier" => metadata.identifier = value,
+                            b"creator" => metadata.author = value,
+                            b"published" => metadata.published = value,
+                            _ => (),
+                        }
                     }
-                    b"language" => language = Some(text_to_string(reader.read_text(e.name()))?),
-                    b"identifier" => identifier = Some(text_to_string(reader.read_text(e.name()))?),
-                    b"creator" => {
-                        author = reader
-                            .read_text(e.name())
-                            .map(|c| Some(c.into_owned()))
-                            .map_err(|_| EpubError::StringParse)?;
+                }
+                Ok(Event::End(_)) => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
                     }
-                    b"published" => {
-                        published = reader
-                            .read_text(e.name())
-                            .map(|c| Some(c.into_owned()))
-                            .map_err(|_| EpubError::StringParse)?;
-                    }
-                    _ => (),
-                },
-                Ok(Event::End(ref e)) if e.name().as_ref() == b"metadata" => break,
+                }
+                Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
                 Err(e) => return Err(e.into()),
-                _ => (),
+                _ => {}
             }
         }
-        Ok(Self {
-            title: title.ok_or(EpubError::XmlField("title".into()))?,
-            language: language.ok_or(EpubError::XmlField("language".into()))?,
-            identifier: identifier.ok_or(EpubError::XmlField("identifier".into()))?,
-            author,
-            published,
-        })
+        Ok(metadata)
     }
 }
 
@@ -81,7 +73,7 @@ mod tests {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"metadata" => {
                     let result = Metadata::extract(&mut reader).unwrap();
-                    assert_eq!(result.title, "Pride and Prejudice");
+                    assert_eq!(result.title, Some("Pride and Prejudice".to_owned()));
                     assert_eq!(result.author, Some("Jane Austen".to_owned()));
                     assert!(result.published.is_none());
                 }
@@ -105,8 +97,8 @@ mod tests {
         loop {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"metadata" => {
-                    let result = Metadata::extract(&mut reader);
-                    assert!(result.is_err());
+                    let result = Metadata::extract(&mut reader).unwrap();
+                    assert!(result.title.is_none());
                 }
                 Ok(Event::Eof) => break, // exits the loop when reaching end of file
                 _ => (),

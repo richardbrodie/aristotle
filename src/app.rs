@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 use std::path::Path;
 use std::rc::Rc;
 
-use crate::book::BookHandler;
+// use crate::book_handler::BookHandler;
 use crate::config::Config;
 use crate::font::fonts::FontIndexer;
 use crate::font::{TypesetConfig, Typesetter};
@@ -25,7 +25,7 @@ pub struct App {
     config: Config,
     typeset_config: TypesetConfig,
     // book content
-    book: BookHandler,
+    // book: BookHandler,
     // cur_chapter: Option<String>,
     // cur_page: usize,
     // content: Content,
@@ -54,21 +54,19 @@ impl App {
                 let mut surface_buffer = surface.buffer_mut().unwrap();
 
                 // fill every pixel with white
-                //for x in 0..size.width {
-                //    for y in 0..size.height {
-                //        surface_buffer[x as usize + y as usize * size.width as usize] = 0x00ffffff;
-                //    }
-                //}
-
-                if let Some(page) = self.book.page() {
-                    let wid = self.typeset_config.page_width as usize;
-                    page.raster(&self.typeset_config.family, |x, y, z| {
-                        let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
-                        let idx = x as usize + y as usize * wid;
-                        surface_buffer[idx] = surface_buffer[idx].min(c);
-                    })
-                    .unwrap();
+                for x in 0..size.width {
+                    for y in 0..size.height {
+                        surface_buffer[x as usize + y as usize * size.width as usize] = 0x00ffffff;
+                    }
                 }
+
+                // if let Some(page) = self.book.page() {
+                //     let wid = self.typeset_config.page_width as usize;
+                //     page.raster(&self.typeset_config.family, wid, |c, idx| {
+                //         surface_buffer[idx] = surface_buffer[idx].min(c);
+                //     })
+                //     .unwrap();
+                // }
 
                 surface_buffer.present().unwrap();
             }
@@ -84,12 +82,7 @@ impl App {
                 .unwrap();
             self.typeset_config.page_width = new_size.width;
             self.typeset_config.page_height = new_size.height;
-            // self.typesetter
-            //     .borrow_mut()
-            //     .set_buffer_size(new_size.width, new_size.height);
-            // if self.cur_page > 0 {
-            //     self.content.typeset().unwrap();
-            // }
+            // self.book.resize(new_size.width, new_size.height);
         }
     }
 }
@@ -99,7 +92,6 @@ impl Default for App {
         let indexer = FontIndexer::new("testfiles/fonts");
         let family = indexer.get_family(&config.family).unwrap();
         let path = Path::new("testfiles/epubs/frankenstein.epub");
-        // let book = Book::new(&path).unwrap();
 
         let tsconf = TypesetConfig {
             family,
@@ -110,22 +102,16 @@ impl Default for App {
             vertical_margin: config.vertical_margin,
         };
         let typesetter = Typesetter::new(&tsconf).unwrap();
-        let book = BookHandler::new(&path, typesetter);
-        // let typesetter = Rc::new(RefCell::new(Typesetter::new(&c).unwrap()));
-        // let first_content = book.index().items().next().map(|x| x.id().to_owned());
+        // let book = BookHandler::new(&path, typesetter);
 
         Self {
             _font_index: indexer,
-            // _book_path: path.to_owned(),
             window: None,
             surface: None,
             config,
             // typesetter: Rc::clone(&typesetter),
             typeset_config: tsconf,
-            book,
-            // cur_chapter: first_content,
-            // cur_page: 0,
-            // content: Content::new(typesetter),
+            // book,
         }
     }
 }
@@ -180,43 +166,13 @@ impl ApplicationHandler for App {
                 //    }
                 //}
                 Key::Named(NamedKey::ArrowLeft) => {
-                    // if self.content.len() > 0 && self.cur_page > 0 {
-                    //     // more pages left
-                    //     self.cur_page -= 1;
-                    // } else {
-                    //     // first page so get new content
-                    //     if let Some(cur) = &self.cur_chapter {
-                    //         let cur_chapter = self.book.prev_item(cur);
-                    //         self.cur_chapter = cur_chapter.map(|x| x.id().to_owned());
-                    //         if let Some(prev) = &self.cur_chapter {
-                    //             let content = self.book.content(cur_chapter.unwrap()).unwrap();
-                    //             self.content.set_content(content);
-                    //             self.cur_page = self.content.len() - 1;
-                    //         }
-                    //     }
-                    // }
-                    self.book.prev_page().unwrap();
+                    // self.book.prev_page().unwrap();
                     if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }
                 }
                 Key::Named(NamedKey::ArrowRight) => {
-                    // if self.content.len() > 0 && self.cur_page < self.content.len() - 1 {
-                    //     // more pages left
-                    //     self.cur_page += 1;
-                    // } else {
-                    //     // last page so get new content
-                    //     if let Some(cur) = &self.cur_chapter {
-                    //         let cur_chapter = self.book.next_item(cur);
-                    //         self.cur_chapter = cur_chapter.map(|x| x.id().to_owned());
-                    //         if let Some(next) = self.cur_chapter {
-                    //             let content = self.book.content(cur_chapter.unwrap()).unwrap();
-                    //             self.content.set_content(content);
-                    //             self.cur_page = 0;
-                    //         }
-                    //     }
-                    // }
-                    self.book.next_page().unwrap();
+                    // self.book.next_page().unwrap();
                     if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }

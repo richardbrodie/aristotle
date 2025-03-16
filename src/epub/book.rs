@@ -1,151 +1,114 @@
-use quick_xml::events::Event;
-use quick_xml::Reader;
-use std::fs::File;
-use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::{fs::File, io::Read, path::Path};
+
+use quick_xml::{events::Event, Reader};
 use zip::ZipArchive;
 
-use super::content::Content;
-use super::index::Index;
-use super::manifest::Manifest;
-use super::metadata::Metadata;
-use super::spine::Spine;
-use super::{cow_to_string, EpubError, Item};
+use crate::epub::spine::Spine;
 
-#[allow(dead_code)]
+use super::{
+    content::Content,
+    error::Error,
+    index::Index,
+    manifest::Manifest,
+    metadata::Metadata,
+    zip::{find_rootfile, read_document},
+    Indexable,
+};
+
+#[derive(Debug, Default)]
 pub struct Book {
-    sourcefile: ZipArchive<File>,
-    contents_dir: PathBuf,
-    metadata: Metadata,
+    source_zip: Option<ZipArchive<File>>,
     index: Index,
+    metadata: Metadata,
+    content_buffer: Vec<u8>,
 }
+
 impl Book {
-    pub fn new<P: AsRef<Path>>(path: &P) -> Result<Self, EpubError> {
-        // open epub file
-        let epub_file = File::open(path).unwrap();
-        let mut epub = ZipArchive::new(epub_file).unwrap();
+    pub fn new<P>(path: &P) -> Result<Self, Error>
+    where
+        P: AsRef<Path>,
+    {
+        let epub_file = File::open(path)?;
+        let mut epub = ZipArchive::new(epub_file)?;
 
         // read META-INF
         let mut file_bytes = Vec::new();
         {
-            let mut container = epub.by_name("META-INF/container.xml").unwrap();
-            let _ = container.read_to_end(&mut file_bytes).unwrap();
+            let mut file = epub.by_name("META-INF/container.xml")?;
+            let _ = file.read_to_end(&mut file_bytes)?;
         }
-        let file_contents = std::str::from_utf8(&file_bytes).unwrap();
-        let rootfile = find_rootfile(file_contents)?;
-        let contents_dir = rootfile.parent().unwrap().to_owned();
+        let file_contents = std::str::from_utf8(&file_bytes)?;
 
-        // parse the contents.opf
-        let mut file_bytes = Vec::new();
-        let mut contents_opf = epub
-            .by_name(rootfile.to_str().unwrap())
-            .map_err(|_| EpubError::File)?;
-        let _ = contents_opf.read_to_end(&mut file_bytes).unwrap();
-        let file_contents = std::str::from_utf8(&file_bytes).unwrap();
-        let mut reader = Reader::from_str(file_contents);
+        // open the rootfile
+        let rootfile_path = find_rootfile(file_contents)?;
+        let contents_dir = rootfile_path
+            .parent()
+            .unwrap_or(Path::new("OEBPS"))
+            .to_owned();
 
-        let mut metadata = None;
-        let mut manifest = None;
-        let mut spine = None;
+        // parse the rootfile contents
+        let rootfile_path = rootfile_path.to_str().ok_or(Error::ZipFile)?;
+        let _ = read_document(&mut epub, rootfile_path, &mut file_bytes)?;
+        let rootfile_contents = std::str::from_utf8(&file_bytes)?;
+        let mut reader = Reader::from_str(rootfile_contents);
+
+        let mut book = Book::default();
+
+        let mut manifest = Manifest::default();
+        let mut spine = Spine::default();
+
         loop {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) => match e.name().as_ref() {
                     b"metadata" => {
-                        metadata = Some(Metadata::extract(&mut reader)?);
+                        let metadata = Metadata::extract(&mut reader)?;
+                        book.metadata = metadata;
                     }
                     b"manifest" => {
-                        manifest = Some(Manifest::extract(&mut reader)?);
+                        manifest = Manifest::extract(&mut reader)?;
                     }
                     b"spine" => {
-                        spine = Some(Spine::extract(e, &mut reader)?);
+                        spine = Spine::extract(&mut reader)?;
                     }
                     _ => (),
                 },
-
                 Ok(Event::Eof) => break, // exits the loop when reaching end of file
                 _ => (),
             }
         }
 
-        drop(contents_opf);
-
-        let metadata = metadata.ok_or(EpubError::XmlField("metadata".into()))?;
-        let manifest = manifest.ok_or(EpubError::XmlField("manifest".into()))?;
-        let spine = spine.ok_or(EpubError::XmlField("manifest".into()))?;
-        let index = Index::new(&manifest.items, &spine.itemrefs);
-
-        Ok(Book {
-            sourcefile: epub,
-            contents_dir,
-            metadata,
-            index,
-        })
+        book.index = Index::new(manifest, spine, contents_dir);
+        book.source_zip = Some(epub);
+        Ok(book)
     }
-
-    pub fn index(&self) -> &Index {
-        &self.index
-    }
-    pub fn next(&self) -> Option<&Item> {
-        None
-    }
-    // pub fn next_element(&mut self, id: &str) -> Result<Content, EpubError> {
-    //     let item = self.index.next_item(id).unwrap();
-    //     let item = item.to_owned();
-    //     self.content(item)
-    // }
-    // pub fn prev_element(&mut self, id: &str) -> Result<Content, EpubError> {
-    //     let item = self.index.prev_item(id).unwrap();
-    //     let item = item.to_owned();
-    //     self.content(item)
-    // }
-    pub fn content(&mut self, item: &Item) -> Result<Content, EpubError> {
-        let full_path = self.contents_dir.join(item.href().path);
-        let path_str = full_path.to_str().unwrap();
-        read_document(&mut self.sourcefile, path_str).map(Content::new)
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
     }
 }
 
-fn find_rootfile(xml: &str) -> Result<PathBuf, EpubError> {
-    let mut reader = Reader::from_str(xml);
-    loop {
-        match reader.read_event() {
-            Ok(Event::Empty(ref e)) if e.name().as_ref() == b"rootfile" => {
-                if let Ok(Some(attr)) = e.try_get_attribute("full-path") {
-                    return cow_to_string(attr.value).map(PathBuf::from);
-                }
-            }
-            Ok(Event::Eof) => break, // exits the loop when reaching end of file
-            Err(e) => panic!("Error at position {}: {:?}", reader.error_position(), e),
-            _ => (), // There are several other `Event`s we do not consider here
-        }
+impl Indexable for Book {
+    fn content(&mut self, id: &str) -> Result<Content, Error> {
+        let item = self.index.element(id).ok_or(Error::ContentNotFound)?;
+        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
+        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        Content::new(id, &self.content_buffer).map_err(|e| e.into())
     }
-    Err(EpubError::File)
-}
-
-fn read_document(sourcefile: &mut ZipArchive<File>, id: &str) -> Result<Vec<u8>, EpubError> {
-    let mut file_bytes = Vec::new();
-    let mut z = sourcefile.by_name(id)?;
-    z.read_to_end(&mut file_bytes)
-        .map(|_| file_bytes)
-        .map_err(|e| EpubError::Zipfile(e.into()))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::find_rootfile;
-
-    #[test]
-    fn get_rootfile_path() {
-        let xml = r#"
-        <?xml version="1.0"?>
-        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-           <rootfiles>
-              <rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>
-
-           </rootfiles>
-        </container>
-        "#;
-        let res = find_rootfile(xml);
-        assert_eq!(res.unwrap().to_str().unwrap(), "content.opf");
+    fn first(&mut self) -> Result<Content, Error> {
+        let item = self.index.first().ok_or(Error::ContentNotFound)?;
+        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
+        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
+    }
+    fn next(&mut self, cur: &str) -> Result<Content, Error> {
+        let item = self.index.next(cur).ok_or(Error::ContentNotFound)?;
+        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
+        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
+    }
+    fn prev(&mut self, cur: &str) -> Result<Content, Error> {
+        let item = self.index.prev(cur).ok_or(Error::ContentNotFound)?;
+        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
+        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
     }
 }

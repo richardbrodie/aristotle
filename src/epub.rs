@@ -1,74 +1,22 @@
 mod book;
 mod content;
-mod element;
-mod guide;
+mod error;
+mod html;
 mod index;
 mod manifest;
 mod metadata;
 mod spine;
-
-pub use content::Content;
-use std::borrow::Cow;
-use zip::result::ZipError;
+mod zip;
 
 pub use book::Book;
-pub use index::Item;
-use quick_xml::events::attributes::AttrError;
+use error::Error;
 
-#[derive(Debug)]
-pub enum EpubError {
-    XmlDocument(quick_xml::Error),
-    XmlField(String),
-    Zipfile(ZipError),
-    XmlAttribute,
-    File,
-    StringParse,
-    NoContent,
-}
-impl From<quick_xml::Error> for EpubError {
-    fn from(error: quick_xml::Error) -> Self {
-        Self::XmlDocument(error)
-    }
-}
+pub use content::Content;
+pub use html::Node;
 
-impl From<AttrError> for EpubError {
-    fn from(error: AttrError) -> Self {
-        Self::XmlDocument(quick_xml::Error::InvalidAttr(error))
-    }
-}
-
-impl From<ZipError> for EpubError {
-    fn from(error: ZipError) -> Self {
-        Self::Zipfile(error)
-    }
-}
-
-fn cow_to_string(c: Cow<[u8]>) -> Result<String, EpubError> {
-    String::from_utf8(c.into_owned()).map_err(|_| EpubError::StringParse)
-}
-fn text_to_string(c: Result<Cow<str>, quick_xml::Error>) -> Result<String, EpubError> {
-    c.map(|i| i.into_owned())
-        .map_err(|_| EpubError::StringParse)
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub enum TextStyle {
-    #[default]
-    Regular,
-    Italic,
-    Bold,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct TextElement {
-    pub style: TextStyle,
-    pub content: String,
-}
-
-#[derive(Debug)]
-pub enum ContentElement {
-    Heading(TextElement),
-    Paragraph,
-    Inline(TextElement),
-    Linebreak,
+pub trait Indexable {
+    fn content(&mut self, id: &str) -> Result<Content, Error>;
+    fn first(&mut self) -> Result<Content, Error>;
+    fn next(&mut self, cur: &str) -> Result<Content, Error>;
+    fn prev(&mut self, cur: &str) -> Result<Content, Error>;
 }

@@ -32,11 +32,11 @@ pub enum TResult<'a> {
     },
     Error(FontError),
 }
-//impl From<Error> for TResult {
-//    fn from(e: Error) -> Self {
-//        TResult::Error(e)
-//    }
-//}
+// impl From<Error> for TResult {
+//     fn from(e: Error) -> Self {
+//         TResult::Error(e)
+//     }
+// }
 
 impl Typesetter {
     pub fn new(config: &TypesetConfig) -> Result<Self, FontError> {

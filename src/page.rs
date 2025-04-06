@@ -31,7 +31,7 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
 
     let mut text_type = FontStyle::Regular;
     let mut caret = Caret::new(config).unwrap();
-    let mut newline = false;
+    let newline = false;
     // let mut first_in_page = true;
     let mut break_type = None;
 

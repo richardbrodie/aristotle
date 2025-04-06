@@ -30,7 +30,7 @@ impl Index {
         self.elements.iter().find(|i| i.id() == id)
     }
     pub fn first(&self) -> Option<&IndexElement> {
-        self.elements.get(0)
+        self.elements.first()
     }
     pub fn next(&self, cur: &str) -> Option<&IndexElement> {
         let idx = self.elements.iter().position(|i| i.id == cur)?;
@@ -41,7 +41,7 @@ impl Index {
         if idx > 0 {
             self.elements.get(idx - 1)
         } else {
-            return None;
+            None
         }
     }
 }
@@ -95,7 +95,7 @@ mod tests {
     fn first_item_with_no_elements() {
         let index = Index { elements: vec![] };
         let first = index.first();
-        assert!(matches!(first, None));
+        assert!(first.is_none());
     }
 
     #[test]

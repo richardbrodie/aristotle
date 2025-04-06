@@ -14,7 +14,6 @@ pub use error::Error;
 pub use content::Content;
 pub use html::ElementVariant;
 pub use html::Node;
-pub use index::IndexElement;
 
 pub trait Indexable {
     fn content(&mut self, id: &str) -> Result<Content, Error>;

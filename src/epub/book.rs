@@ -48,7 +48,7 @@ impl Book {
 
         // parse the rootfile contents
         let rootfile_path = rootfile_path.to_str().ok_or(Error::ZipFile)?;
-        let _ = read_document(&mut epub, rootfile_path, &mut file_bytes)?;
+        read_document(&mut epub, rootfile_path, &mut file_bytes)?;
         let rootfile_contents = std::str::from_utf8(&file_bytes)?;
         let mut reader = Reader::from_str(rootfile_contents);
 
@@ -93,25 +93,25 @@ impl Indexable for Book {
     fn content(&mut self, id: &str) -> Result<Content, Error> {
         let item = self.index.element(id).ok_or(Error::ContentNotFound)?;
         let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        read_document(zip, item.path(), &mut self.content_buffer)?;
         Content::new(id, &self.content_buffer).map_err(|e| e.into())
     }
     fn first(&mut self) -> Result<Content, Error> {
         let item = self.index.first().ok_or(Error::ContentNotFound)?;
         let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        read_document(zip, item.path(), &mut self.content_buffer)?;
         Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
     }
     fn next(&mut self, cur: &str) -> Result<Content, Error> {
         let item = self.index.next(cur).ok_or(Error::ContentNotFound)?;
         let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        read_document(zip, item.path(), &mut self.content_buffer)?;
         Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
     }
     fn prev(&mut self, cur: &str) -> Result<Content, Error> {
         let item = self.index.prev(cur).ok_or(Error::ContentNotFound)?;
         let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        let _ = read_document(zip, item.path(), &mut self.content_buffer)?;
+        read_document(zip, item.path(), &mut self.content_buffer)?;
         Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
     }
 }

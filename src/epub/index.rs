@@ -23,7 +23,7 @@ impl Index {
         Self { elements }
     }
 
-    fn iter(&self) -> impl Iterator<Item = &IndexElement> {
+    pub fn iter(&self) -> impl Iterator<Item = &IndexElement> {
         self.elements.iter()
     }
     pub fn element(&self, id: &str) -> Option<&IndexElement> {

@@ -30,7 +30,6 @@ impl Config {
             file.write_all(contents.as_ref()).unwrap();
             config
         };
-        // config.check_store_dir();
         config
     }
 
@@ -44,10 +43,4 @@ impl Config {
             vertical_margin: 16,
         }
     }
-
-    // fn check_store_dir(&self) {
-    //     if !self.store_path.exists() {
-    //         fs::create_dir(&self.store_path);
-    //     }
-    // }
 }

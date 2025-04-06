@@ -8,7 +8,7 @@ use crate::epub::spine::Spine;
 use super::{
     content::Content,
     error::Error,
-    index::Index,
+    index::{Index, IndexElement},
     manifest::Manifest,
     metadata::Metadata,
     zip::{find_rootfile, read_document},
@@ -83,6 +83,9 @@ impl Book {
     }
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+    pub fn index(&self) -> impl Iterator<Item = &IndexElement> {
+        self.index.iter()
     }
 }
 

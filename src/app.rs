@@ -1,11 +1,13 @@
 use std::num::NonZeroU32;
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::{Arc, RwLock};
 
+use crate::book_handler::BookHandler;
 // use crate::book_handler::BookHandler;
 use crate::config::Config;
 use crate::font::fonts::FontIndexer;
-use crate::font::{TypesetConfig, Typesetter};
+use crate::font::TypesetConfig;
 use softbuffer::Surface;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -23,9 +25,9 @@ pub struct App {
     // text rendering
     // typesetter: Rc<RefCell<Typesetter>>,
     config: Config,
-    typeset_config: TypesetConfig,
+    typeset_config: Arc<RwLock<TypesetConfig>>,
     // book content
-    // book: BookHandler,
+    book: BookHandler,
     // cur_chapter: Option<String>,
     // cur_page: usize,
     // content: Content,
@@ -60,13 +62,15 @@ impl App {
                     }
                 }
 
-                // if let Some(page) = self.book.page() {
-                //     let wid = self.typeset_config.page_width as usize;
-                //     page.raster(&self.typeset_config.family, wid, |c, idx| {
-                //         surface_buffer[idx] = surface_buffer[idx].min(c);
-                //     })
-                //     .unwrap();
-                // }
+                if let Some(page) = self.book.page() {
+                    if let Ok(conf) = self.typeset_config.read() {
+                        let wid = conf.page_width;
+                        page.raster(&conf.family, wid, |c, idx| {
+                            surface_buffer[idx] = surface_buffer[idx].min(c);
+                        })
+                        .unwrap();
+                    }
+                }
 
                 surface_buffer.present().unwrap();
             }
@@ -80,9 +84,11 @@ impl App {
                     NonZeroU32::new(new_size.height).unwrap(),
                 )
                 .unwrap();
-            self.typeset_config.page_width = new_size.width;
-            self.typeset_config.page_height = new_size.height;
-            // self.book.resize(new_size.width, new_size.height);
+            if let Ok(mut conf) = self.typeset_config.write() {
+                conf.page_width = new_size.width as usize;
+                conf.page_height = new_size.height as usize;
+            }
+            self.book.repaginate().unwrap();
         }
     }
 }
@@ -101,17 +107,16 @@ impl Default for App {
             horizontal_margin: config.horizontal_margin,
             vertical_margin: config.vertical_margin,
         };
-        let typesetter = Typesetter::new(&tsconf).unwrap();
-        // let book = BookHandler::new(&path, typesetter);
+        let tsconfig = Arc::new(RwLock::new(tsconf));
+        let book = BookHandler::new(&path, tsconfig.clone());
 
         Self {
             _font_index: indexer,
             window: None,
             surface: None,
             config,
-            // typesetter: Rc::clone(&typesetter),
-            typeset_config: tsconf,
-            // book,
+            typeset_config: tsconfig,
+            book,
         }
     }
 }
@@ -122,7 +127,6 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::KeyboardInput {
@@ -166,13 +170,13 @@ impl ApplicationHandler for App {
                 //    }
                 //}
                 Key::Named(NamedKey::ArrowLeft) => {
-                    // self.book.prev_page().unwrap();
+                    self.book.prev_page().unwrap();
                     if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }
                 }
                 Key::Named(NamedKey::ArrowRight) => {
-                    // self.book.next_page().unwrap();
+                    self.book.next_page().unwrap();
                     if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }

@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use ttf_parser::{Face, GlyphId};
 
 use super::caret::Caret;
@@ -14,11 +12,11 @@ pub struct TypesetText {
     pub style: FontStyle,
 }
 
-pub enum TResult<'a> {
+pub enum TResult {
     Ok(TypesetText),
     Overflow {
         processed: TypesetText,
-        remainder: Cow<'a, str>,
+        index: usize,
     },
     Error(FontError),
 }
@@ -28,12 +26,10 @@ pub enum TResult<'a> {
 //     }
 // }
 
-pub fn typeset<'a>(
-    params: &TypesetConfig,
-    caret: &mut Caret,
-    text: &'a str,
-    style: FontStyle,
-) -> TResult<'a> {
+pub fn typeset<T>(params: &TypesetConfig, caret: &mut Caret, text: T, style: FontStyle) -> TResult
+where
+    T: Iterator<Item = char>,
+{
     let font = params.family.face(style).unwrap();
     let scale_factor = font.scale_factor(params.point_size);
     let face = font.as_ttf_face().unwrap();
@@ -43,24 +39,19 @@ pub fn typeset<'a>(
     let asc = face.ascender() as f32;
 
     let mut word_buffer: Vec<Glyph> = vec![];
-    // let mut buffer_height = 0.0;
     let mut char_buf = vec![];
-    let mut last_word = String::new();
-    let mut last_committed_character = 0;
     let mut count = 0;
     let mut t = TypesetText {
         glyphs: vec![],
         point_size: params.point_size,
         style,
     };
-    for (i, c) in text.chars().enumerate() {
+    for c in text {
         // cycle the word buffer
         if c.is_whitespace() {
             count += word_buffer.len() + 1;
             t.glyphs.append(&mut word_buffer);
             caret.space();
-            last_committed_character = i;
-            last_word = String::from_iter(char_buf);
             char_buf = vec![];
             continue;
         }
@@ -78,19 +69,9 @@ pub fn typeset<'a>(
             // if it would then overextend vertically
             if caret.overflows_vertically(1.0) {
                 //return the current char index
-                // tracing::info!(
-                //     "word: {}, buf: {:?}, char: {}, idx: {}/{}/{}",
-                //     last_word,
-                //     char_buf,
-                //     c,
-                //     count,
-                //     last_committed_character,
-                //     i
-                // );
-                let res = &text[last_committed_character..];
                 return TResult::Overflow {
                     processed: t,
-                    remainder: Cow::Borrowed(res),
+                    index: count,
                 };
             }
             caret.newline(1.0);

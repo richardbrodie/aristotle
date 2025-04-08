@@ -1,6 +1,9 @@
+use std::ops::DerefMut;
+
 use crate::epub::{ElementVariant, Node};
 use crate::font::caret::Caret;
 use crate::font::fonts::{Family, FontStyle};
+use crate::font::geom::Point;
 use crate::font::typeset::{TResult, TypesetText};
 use crate::font::{raster, typeset, FontError, TypesetConfig};
 
@@ -9,19 +12,26 @@ enum BreakType {
     Block,
 }
 
+#[derive(Debug)]
+enum PageElement {
+    Text(TypesetText),
+    Hr { start: Point, end: Point },
+}
+
 #[derive(Debug, Default)]
 pub struct Page {
-    text_elements: Vec<TypesetText>,
+    text_elements: Vec<PageElement>,
 }
 
 impl Page {
-    pub fn raster<F>(&self, fam: &Family, width: usize, mut f: F) -> Result<(), FontError>
+    pub fn raster<B>(&self, fam: &Family, width: usize, buffer: &mut B) -> Result<(), FontError>
     where
-        F: FnMut(u32, usize),
+        B: DerefMut<Target = [u32]>,
     {
-        self.text_elements
-            .iter()
-            .try_for_each(|e| raster::raster(fam, e, width, &mut f))
+        self.text_elements.iter().try_for_each(|e| match e {
+            PageElement::Text(t) => raster::text(fam, t, width, buffer),
+            PageElement::Hr { start, end } => raster::hr(start, end, width, buffer),
+        })
     }
 }
 
@@ -79,11 +89,11 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                     let res = typeset::typeset(config, &mut caret, next, text_type);
                     match res {
                         TResult::Ok(typeset_text) => {
-                            p.text_elements.push(typeset_text);
+                            p.text_elements.push(PageElement::Text(typeset_text));
                         }
                         TResult::Overflow { processed, index } => {
                             // commit the pre-overflow part
-                            p.text_elements.push(processed);
+                            p.text_elements.push(PageElement::Text(processed));
                             pages.push(p);
 
                             // start a new page
@@ -106,10 +116,13 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                     break_type = Some(BreakType::Line);
                 }
                 ElementVariant::Hr => {
-                    // if !caret.overflows_vertically() {
-                    //     // draw a horizontal line
-                    //     // ⎯
-                    // }
+                    caret.newline(1.0);
+                    let s = caret.point();
+                    let e = config.page_width - config.horizontal_margin as usize;
+                    let midline = caret.scaled_height() / 2.0;
+                    let start = Point::new(s.x, (s.y + midline).floor());
+                    let end = Point::new(e as f32, (s.y + midline).ceil());
+                    p.text_elements.push(PageElement::Hr { start, end });
                 }
                 e => {
                     tracing::info!("empty: [{:?}]", e);

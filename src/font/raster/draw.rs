@@ -1,22 +1,39 @@
+use std::ops::DerefMut;
+
 use crate::font::fonts::Family;
+use crate::font::geom::Point;
 use crate::font::typeset::TypesetText;
 use crate::font::FontError;
 
 use super::builder::Builder;
 
-pub fn raster<F>(
+pub fn hr<B>(start: &Point, end: &Point, width: usize, buffer: &mut B) -> Result<(), FontError>
+where
+    B: DerefMut<Target = [u32]>,
+{
+    for y in start.y as usize..end.y as usize {
+        let py = y * width;
+        for x in start.x as usize..end.x as usize {
+            let idx = py + x;
+            buffer[idx] = 0;
+        }
+    }
+    Ok(())
+}
+
+pub fn text<B>(
     family: &Family,
     text: &TypesetText,
     width: usize,
-    mut pix_func: F,
+    buffer: &mut B,
 ) -> Result<(), FontError>
 where
-    F: FnMut(u32, usize),
+    B: DerefMut<Target = [u32]>,
 {
     let face = family.face(text.style)?;
     let scale_factor = face.scale_factor(text.point_size);
-
     let face = face.as_ttf_face()?;
+
     let desc = face.descender() as f32;
     let asc = face.ascender() as f32;
     let h = ((asc - desc) * scale_factor).ceil();
@@ -73,7 +90,7 @@ where
                 let z = byte as u32;
                 let c = z | z << 8 | z << 16;
                 let idx = x as usize + y as usize * width;
-                pix_func(c, idx);
+                buffer[idx] = c;
             });
         }
     }
@@ -89,7 +106,7 @@ pub mod tests {
     use crate::font::typeset::TypesetText;
     use crate::font::Glyph;
 
-    use super::raster;
+    use super::text;
 
     pub fn test_family(style: FontStyle) -> Family {
         let path = match style {
@@ -104,13 +121,15 @@ pub mod tests {
 
     #[test]
     fn regular_y() {
+        let p = Point {
+            x: 103.248,
+            y: 33.432,
+        };
+        let w = 640;
         let t = TypesetText {
             glyphs: vec![Glyph {
                 gid: GlyphId(588),
-                pos: Point {
-                    x: 103.248,
-                    y: 33.432,
-                },
+                pos: p,
                 dim: Rect {
                     min: Point {
                         x: -118.0,
@@ -123,21 +142,24 @@ pub mod tests {
             style: FontStyle::Regular,
         };
         let fam = test_family(t.style);
-        let r = raster(&fam, &t, 640, |_, _| ());
+        let mut buf = vec![0; p.x as usize * w];
+        let r = text(&fam, &t, w, &mut buf);
         assert!(r.is_ok());
     }
 
     #[test]
     fn italic_y() {
+        let p = Point {
+            x: 103.248,
+            y: 33.432,
+        };
+        let w = 640;
         let t = TypesetText {
             glyphs: vec![
                 //},
                 Glyph {
                     gid: GlyphId(588),
-                    pos: Point {
-                        x: 103.248,
-                        y: 33.432,
-                    },
+                    pos: p,
                     dim: Rect {
                         min: Point {
                             x: -118.0,
@@ -151,7 +173,8 @@ pub mod tests {
             style: FontStyle::Italic,
         };
         let fam = test_family(t.style);
-        let r = raster(&fam, &t, 640, |_, _| ());
+        let mut buf = vec![0; p.x as usize * w];
+        let r = text(&fam, &t, w, &mut buf);
         assert!(r.is_ok());
     }
 }

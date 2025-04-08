@@ -20,11 +20,6 @@ pub enum TResult {
     },
     Error(FontError),
 }
-// impl From<Error> for TResult {
-//     fn from(e: Error) -> Self {
-//         TResult::Error(e)
-//     }
-// }
 
 pub fn typeset<T>(params: &TypesetConfig, caret: &mut Caret, text: T, style: FontStyle) -> TResult
 where

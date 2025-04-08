@@ -4,6 +4,7 @@ use super::{FontError, TypesetConfig};
 
 // const INDENT_PERCENTAGE: f32 = 0.03;
 
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Caret {
     scaled_height: f32,
     space_width: f32,
@@ -35,7 +36,12 @@ impl Caret {
             point,
         })
     }
-
+    pub fn point(&self) -> Point {
+        self.point
+    }
+    pub fn scaled_height(&self) -> f32 {
+        self.scaled_height
+    }
     pub fn newline(&mut self, lines: f32) {
         self.point = Point::new(
             self.horizontal_margin,
@@ -51,9 +57,6 @@ impl Caret {
     }
     pub fn space(&mut self) {
         self.point.x += self.space_width;
-    }
-    pub fn point(&self) -> Point {
-        self.point
     }
 
     pub fn overflows_horizontally(&self, hadv: f32) -> bool {

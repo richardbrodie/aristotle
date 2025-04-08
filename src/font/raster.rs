@@ -1,5 +1,4 @@
 mod builder;
 mod draw;
 
-pub use draw::raster;
-
+pub use draw::{hr, text};

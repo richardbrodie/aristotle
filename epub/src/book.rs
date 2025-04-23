@@ -1,14 +1,15 @@
+use roxmltree::Document;
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
-use crate::document::Document;
+use crate::element::Element;
 use crate::guide::{Guide, Reference};
 use crate::manifest::{Manifest, ManifestItem};
 use crate::metadata::Metadata;
 use crate::spine::Spine;
-use crate::Error;
+use crate::{Content, Error};
 
 pub struct Book {
     sourcefile: ZipArchive<File>,
@@ -52,17 +53,37 @@ impl Book {
             guide,
         });
     }
-    pub fn items(&self) -> impl Iterator<Item = Document> + '_ {
+    fn read_document(&mut self, id: &str) -> Result<Vec<u8>, Error> {
+        let mut file_bytes = Vec::new();
+        let mut z = self.sourcefile.by_name(id).map_err(|_| Error::Zip)?;
+        if let Ok(_) = z.read_to_end(&mut file_bytes) {
+            return Ok(file_bytes);
+        }
+        return Err(Error::Zip);
+    }
+    pub fn items(&self) -> impl Iterator<Item = Element> + '_ {
         self.spine
             .items()
             .map_while(move |id| self.manifest.find(id))
-            .map(Into::into)
+            .map(|i| Element::new(i))
     }
-    pub fn next_item(&self, id: &str) -> Option<Document> {
+    pub fn element(&self, id: &str) -> Option<Element> {
+        self.manifest.find(id).map(|i| Element::new(i))
+    }
+    pub fn next_item(&self, id: &str) -> Option<Element> {
         self.spine
             .next(id)
             .and_then(|i| self.manifest.find(i))
-            .map(Into::into)
+            .map(|i| Element::new(i))
+    }
+    pub fn content(&mut self, id: &str) -> Option<Content> {
+        if let Some(item) = self.manifest.find(id) {
+            let el = Element::new(item);
+            if let Ok(bytes) = self.read_document(el.path().unwrap()) {
+                return Some(Content::new(bytes));
+            }
+        }
+        None
     }
 }
 

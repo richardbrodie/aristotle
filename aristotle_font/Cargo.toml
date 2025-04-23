@@ -1,0 +1,17 @@
+[package]
+name = "aristotle_font"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ab_glyph_rasterizer = "0.1.8"
+ttf-parser = "0.24.1"
+
+# ab_glyph = {version = "0.2.28", optional=true}
+#
+# [features]
+# ab = ["ab_glyph"]
+#
+# [[bin]]
+# name = "ab"
+# required-features = ["ab"]

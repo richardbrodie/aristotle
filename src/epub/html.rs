@@ -73,7 +73,7 @@ impl<'a> Node<'a> {
     }
 }
 
-impl<'s> std::fmt::Display for Node<'s> {
+impl std::fmt::Display for Node<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Node::Element(e) => write!(f, "Element: {:?}", e.variant())?,
@@ -139,7 +139,7 @@ impl<'a> Iterator for NodeIterator<'a> {
             }
         }
 
-        return Some(current_node);
+        Some(current_node)
     }
 }
 
@@ -199,7 +199,7 @@ pub struct Element<'a> {
     attributes: Vec<Attribute<'a>>,
     children: Vec<Node<'a>>,
 }
-impl<'a> Element<'a> {
+impl Element<'_> {
     pub fn variant(&self) -> ElementVariant {
         self.variant
     }

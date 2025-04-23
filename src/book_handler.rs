@@ -1,10 +1,8 @@
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use crate::epub::{self, Book, ElementVariant, IndexElement, Indexable, Node};
-use crate::font::fonts::{Family, FontStyle};
-use crate::font::typeset::{TResult, TypesetText};
-use crate::font::{FontError, TypesetConfig};
+use crate::epub::{self, Book, Indexable};
+use crate::font::TypesetConfig;
 use crate::page::{paginate, Page};
 
 #[derive(Debug)]
@@ -40,7 +38,7 @@ impl BookHandler {
 
     pub fn repaginate(&mut self) -> Result<(), Error> {
         if let Some(chap) = self.current_chapter.as_ref() {
-            let content = self.book.content(&chap)?;
+            let content = self.book.content(chap)?;
             let node = content.iter().next().unwrap();
 
             let c = self.config.read().unwrap();
@@ -71,7 +69,7 @@ impl BookHandler {
             self.current_chapter = Some(content.id().to_owned());
             self.current_page = 0;
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn prev_page(&mut self) -> Result<(), Error> {
@@ -90,6 +88,6 @@ impl BookHandler {
             self.current_chapter = Some(content.id().to_owned());
             self.current_page = self.pages.len() - 1;
         }
-        return Ok(());
+        Ok(())
     }
 }

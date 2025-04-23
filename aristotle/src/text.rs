@@ -4,9 +4,8 @@ use aristotle_font::TextObject;
 use epub::ContentElement as EpubElement;
 use epub::TextStyle;
 
-pub fn convert_content(elem: EpubElement) -> ContentElement {
+pub fn convert_content(elem: &EpubElement) -> ContentElement {
     match elem {
-        //EpubElement::Linebreak => ContentElement::Linebreak,
         EpubElement::Linebreak => ContentElement::Linebreak,
         EpubElement::Inline(i) => {
             let s = match i.style {
@@ -15,7 +14,7 @@ pub fn convert_content(elem: EpubElement) -> ContentElement {
                 TextStyle::Regular => FontStyle::Regular,
             };
             let to = TextObject {
-                raw_text: i.content,
+                raw_text: i.content.clone(),
                 style: Some(s),
                 ..Default::default()
             };

@@ -31,8 +31,6 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
 
     let mut text_type = FontStyle::Regular;
     let mut caret = Caret::new(config).unwrap();
-    let newline = false;
-    // let mut first_in_page = true;
     let mut break_type = None;
 
     for node in content.iter() {
@@ -41,11 +39,6 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                 ElementVariant::H1 | ElementVariant::H2 | ElementVariant::H3 => {
                     text_type = FontStyle::Bold;
                     break_type = Some(BreakType::Block);
-                    // if !first_in_page {
-                    //     newline = true;
-                    // }
-                    // first_in_page = false;
-                    // caret.newline();
                 }
                 ElementVariant::Span => {
                     caret.space();
@@ -53,12 +46,6 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                 ElementVariant::P | ElementVariant::Div => {
                     text_type = FontStyle::Regular;
                     break_type = Some(BreakType::Block);
-                    // if !first_in_page {
-                    // newline = true;
-                    // }
-                    // first_in_page = false;
-                    // caret.newline();
-                    // caret.indent();
                 }
                 ElementVariant::B => {
                     text_type = FontStyle::Bold;
@@ -74,7 +61,7 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                 if !p.text_elements.is_empty() {
                     if let Some(bt) = break_type.take() {
                         let lines = match bt {
-                            BreakType::Block => 1.5,
+                            BreakType::Block => 1.3,
                             BreakType::Line => 1.0,
                         };
                         if caret.overflows_vertically(lines) {
@@ -87,25 +74,23 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                     }
                 }
 
-                let mut remaining = Some(text.to_string());
+                let mut remaining = Some(text.chars().skip(0));
                 while let Some(next) = remaining.take() {
-                    let res = typeset::typeset(config, &mut caret, &next, text_type);
+                    let res = typeset::typeset(config, &mut caret, next, text_type);
                     match res {
                         TResult::Ok(typeset_text) => {
                             p.text_elements.push(typeset_text);
                         }
-                        TResult::Overflow {
-                            processed,
-                            remainder,
-                        } => {
+                        TResult::Overflow { processed, index } => {
                             // commit the pre-overflow part
                             p.text_elements.push(processed);
                             pages.push(p);
+
                             // start a new page
                             p = Page::default();
                             caret.reset_location();
-                            let overflowed_text = remainder.trim();
-                            remaining = Some(overflowed_text.to_string());
+                            let overflow = text.chars().skip(index);
+                            remaining = Some(overflow);
                         }
                         TResult::Error(err) => {
                             tracing::error!("{:?}", err);

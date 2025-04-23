@@ -4,7 +4,6 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 use crate::book_handler::BookHandler;
-// use crate::book_handler::BookHandler;
 use crate::config::Config;
 use crate::font::fonts::FontIndexer;
 use crate::font::TypesetConfig;
@@ -18,23 +17,11 @@ use winit::window::{Window, WindowId};
 
 pub struct App {
     _font_index: FontIndexer,
-    // _book_path: PathBuf,
-    // graphics
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    // text rendering
-    // typesetter: Rc<RefCell<Typesetter>>,
     config: Config,
     typeset_config: Arc<RwLock<TypesetConfig>>,
-    // book content
     book: BookHandler,
-    // cur_chapter: Option<String>,
-    // cur_page: usize,
-    // content: Content,
-
-    //new
-    // book_handler: BookHandler,
-    // renderer: DrawHandler
 }
 
 impl App {
@@ -65,10 +52,7 @@ impl App {
                 if let Some(page) = self.book.page() {
                     if let Ok(conf) = self.typeset_config.read() {
                         let wid = conf.page_width;
-                        page.raster(&conf.family, wid, |c, idx| {
-                            surface_buffer[idx] = surface_buffer[idx].min(c);
-                        })
-                        .unwrap();
+                        page.raster(&conf.family, wid, &mut surface_buffer).unwrap();
                     }
                 }
 

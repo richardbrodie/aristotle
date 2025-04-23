@@ -108,7 +108,8 @@ impl Book {
     }
     pub fn content(&mut self, id: &str) -> Option<Content> {
         let item = self.manifest.find(id).unwrap();
-        let path = item.href().to_str().unwrap().to_owned();
+        let full_path = self.contents_dir.join(item.href());
+        let path = full_path.to_str().unwrap().to_owned();
         if let Ok(bytes) = self.read_document(&path) {
             return Some(Content::new(bytes));
         }

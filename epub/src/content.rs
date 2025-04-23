@@ -1,6 +1,5 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use std::usize;
 
 use crate::{ContentElement, TextElement, TextStyle};
 
@@ -18,15 +17,12 @@ impl Content {
         loop {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"body" => {
-                    //let c = reader.read_to_end(e.name()).unwrap();
-                    //let start = c.start as usize;
-                    //let end = c.end as usize;
-                    //return Some(&str_content[start..end]);
+                    tracing::info!("start: {:?}", e);
                     return paragraphs(&mut reader);
                 }
                 Err(_) => return vec![],
                 Ok(Event::Eof) => break, // exits the loop when reaching end of file
-                _ => (),
+                u => tracing::info!("unknown: {:?}", u),
             }
         }
         return vec![];
@@ -39,7 +35,7 @@ fn paragraphs(reader: &mut Reader<&[u8]>) -> Vec<ContentElement> {
     loop {
         match reader.read_event() {
             Ok(Event::Start(ref e)) => match e.name().as_ref() {
-                b"div" => {
+                b"div" | b"p" => {
                     elements.push(ContentElement::Paragraph);
                 }
                 b"i" => {

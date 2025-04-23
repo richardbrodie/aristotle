@@ -11,20 +11,19 @@ use winit::window::{Window, WindowId};
 
 use aristotle_font::{
     fonts::{Faces, FontIndexer, FontStyle, Indexer},
-    geom::Point,
     renderer::TextRenderer,
     RenderingConfig, TextObject, TypesetObject,
 };
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
-const LONG: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
+const _LONG: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut app = App::new();
+    let mut app = App::default();
     let _ = event_loop.run_app(&mut app);
 }
 
@@ -38,24 +37,6 @@ pub struct App {
 }
 
 impl App {
-    pub fn new() -> Self {
-        let indexer = FontIndexer::new("testfiles");
-        let config = RenderingConfig {
-            point_size: 24.0,
-            width: 640,
-            height: 480,
-            font: None,
-        };
-        let glyphs = TextRenderer::new(&config);
-        Self {
-            window: None,
-            surface: None,
-            renderer: glyphs,
-            text: vec![],
-            typeset_text: vec![],
-            font_index: indexer,
-        }
-    }
     pub fn init(&mut self, event_loop: &ActiveEventLoop) {
         let window = Rc::new(
             event_loop
@@ -107,6 +88,26 @@ impl App {
         ];
     }
 }
+impl Default for App {
+    fn default() -> Self {
+        let indexer = FontIndexer::new("testfiles");
+        let config = RenderingConfig {
+            point_size: 24.0,
+            width: 640,
+            height: 480,
+            font: None,
+        };
+        let glyphs = TextRenderer::new(&config);
+        Self {
+            window: None,
+            surface: None,
+            renderer: glyphs,
+            text: vec![],
+            typeset_text: vec![],
+            font_index: indexer,
+        }
+    }
+}
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.init(event_loop);
@@ -127,7 +128,7 @@ impl ApplicationHandler for App {
                 ..
             } => match key.as_ref() {
                 Key::Character("+") => {
-                    if let Some(win) = self.window.as_ref() {
+                    if let Some(_win) = self.window.as_ref() {
                         //let mut config = self.glyphs.config();
                         //config.point_size += 2.0;
                         //self.glyphs.update_config(&config);
@@ -135,7 +136,7 @@ impl ApplicationHandler for App {
                     }
                 }
                 Key::Character("-") => {
-                    if let Some(win) = self.window.as_ref() {
+                    if let Some(_win) = self.window.as_ref() {
                         //let mut config = self.glyphs.config();
                         //config.point_size -= 2.0;
                         //self.glyphs.update_config(&config);
@@ -148,10 +149,10 @@ impl ApplicationHandler for App {
                             .typeset_text
                             .last()
                             .map(|l| l.caret)
-                            .unwrap_or(Point::default());
+                            .unwrap_or_default();
 
                         let to = &self.text[self.typeset_text.len()];
-                        let t = self.renderer.typeset(&to, caret).unwrap();
+                        let t = self.renderer.typeset(to, caret).unwrap();
                         self.typeset_text.push(t);
                         win.request_redraw();
                     }
@@ -202,7 +203,7 @@ impl ApplicationHandler for App {
                         }
 
                         for to in self.typeset_text.iter() {
-                            let _ = self.renderer.raster(&to, |x, y, z| {
+                            let _ = self.renderer.raster(to, |x, y, z| {
                                 let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
                                 let idx =
                                     x as usize + y as usize * self.renderer.canvas_width as usize;

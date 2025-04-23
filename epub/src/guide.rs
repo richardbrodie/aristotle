@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct Reference {
     ref_type: String,
     title: String,
@@ -17,6 +18,7 @@ impl Reference {
 }
 
 #[derive(Debug, Default)]
+#[allow(dead_code)]
 pub struct Guide {
     references: Vec<Reference>,
 }

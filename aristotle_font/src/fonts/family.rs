@@ -45,7 +45,7 @@ impl Faces for Family {
 #[derive(Default, Clone, Debug)]
 pub struct Face {
     bytes: Vec<u8>,
-    family: String,
+    _family: String,
     style: FontStyle,
     units_per_em: f32,
 }
@@ -56,7 +56,7 @@ impl Face {
         let units_per_em = f.units_per_em() as f32;
         Face {
             bytes,
-            family: file.family.clone(),
+            _family: file.family.clone(),
             style: file.style,
             units_per_em,
         }

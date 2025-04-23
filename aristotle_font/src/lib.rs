@@ -22,6 +22,7 @@ pub struct RenderingConfig {
 }
 
 #[derive(Clone, Default, Debug)]
+#[allow(dead_code)]
 pub struct FontWeight(f32);
 
 #[derive(Clone, Default, Debug)]

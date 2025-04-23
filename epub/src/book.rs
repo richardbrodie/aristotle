@@ -10,6 +10,7 @@ use crate::metadata::Metadata;
 use crate::spine::Spine;
 use crate::{Content, Error};
 
+#[allow(dead_code)]
 pub struct Book {
     sourcefile: ZipArchive<File>,
     contents_dir: PathBuf,
@@ -55,7 +56,7 @@ impl Book {
     fn read_document(&mut self, id: &str) -> Result<Vec<u8>, Error> {
         let mut file_bytes = Vec::new();
         let mut z = self.sourcefile.by_name(id).map_err(|_| Error::Zip)?;
-        if let Ok(_) = z.read_to_end(&mut file_bytes) {
+        if z.read_to_end(&mut file_bytes).is_ok() {
             return Ok(file_bytes);
         }
         Err(Error::Zip)

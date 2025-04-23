@@ -9,9 +9,7 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-use aristotle_font::{
-    indexer::FontIndexer, indexer::Indexer, Point, RenderingConfig, TextObject, TextRenderer,
-};
+use aristotle_font::{FontIndexer, Indexer, Point, RenderingConfig, TextObject, TextRenderer};
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
@@ -64,8 +62,6 @@ impl App {
         let context = softbuffer::Context::new(window.clone()).unwrap();
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
-        //self.glyphs.clear_text();
-        //self.glyphs.set_text(LONG);
     }
 }
 impl ApplicationHandler for App {

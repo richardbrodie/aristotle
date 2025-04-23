@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use ttf_parser::PlatformId;
 
-use crate::font::{Face, Family, FontStyle};
+use super::family::{Face, Family, FontStyle};
 
 pub struct Font {
     pub path: PathBuf,

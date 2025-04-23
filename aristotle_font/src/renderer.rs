@@ -1,14 +1,8 @@
 use crate::builder::Builder;
-use crate::font::{Faces, Family};
+use crate::fonts::{Faces, Family, FontStyle};
 use crate::geom::{Point, Rect};
-use crate::{Error, FontStyle, Glyph, RenderingConfig, TextObject, TypesetObject};
+use crate::{Error, Glyph, RenderingConfig, TextObject, TypesetObject};
 use ttf_parser::{Face, GlyphId};
-
-fn scale_factor(font_size: f32, font: &Face) -> f32 {
-    let px_per_em = font_size * (96.0 / 72.0);
-    let units_per_em = font.units_per_em() as f32;
-    px_per_em / units_per_em
-}
 
 pub struct TextRenderer {
     point_size: f32,
@@ -24,6 +18,25 @@ impl TextRenderer {
             canvas_width: config.width,
             canvas_height: config.height,
         }
+    }
+
+    fn face(&self) {
+        //
+    }
+
+    //pub fn config(&self) -> RenderingConfig {
+    //    RenderingConfig {
+    //        point_size: self.base_point_size,
+    //        width: self.canvas_width,
+    //        height: self.canvas_height,
+    //        font_path: self.font_path.clone(),
+    //    }
+    //}
+
+    pub fn update_config(&mut self, config: &RenderingConfig) {
+        self.point_size = config.point_size;
+        self.canvas_width = config.width;
+        self.canvas_height = config.height;
     }
 
     pub fn set_buffer_size(&mut self, width: u32, height: u32) {
@@ -53,12 +66,12 @@ impl TextRenderer {
     }
 
     pub fn typeset(&mut self, text: &TextObject, pos: Point) -> Result<TypesetObject, Error> {
-        if self.font.is_none() {
-            return Err(Error::Typeset);
-        }
-        let font = self.font.as_ref().unwrap();
-        let face = font.get_face(FontStyle::Regular).unwrap();
-        let scale_factor = scale_factor(self.point_size, &face);
+        // TODO: make this cleaner
+        let family = self.font.as_ref().unwrap();
+        let face = family.get_face(FontStyle::Regular).unwrap();
+        let scale_factor = face.scale_factor(self.point_size);
+        let face = face.as_face();
+
         let mut last = None;
         let mut caret = pos;
         let scaled_height = face.height() as f32 * scale_factor;
@@ -101,12 +114,11 @@ impl TextRenderer {
     where
         F: FnMut(u32, u32, u8),
     {
-        if self.font.is_none() {
-            return Err(Error::Typeset);
-        }
-        let font = self.font.as_ref().unwrap();
-        let face = font.get_face(FontStyle::Regular).unwrap();
-        let scale_factor = scale_factor(self.point_size, &face);
+        let family = self.font.as_ref().unwrap();
+        let face = family.get_face(FontStyle::Regular).unwrap();
+        let scale_factor = face.scale_factor(self.point_size);
+        let face = face.as_face();
+
         let mut builder = Builder::new(face.descender(), scale_factor);
         for g in text.iter() {
             let min = g.dim.min;

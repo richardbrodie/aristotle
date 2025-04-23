@@ -1,10 +1,8 @@
 mod builder;
-mod font;
+mod fonts;
 mod geom;
-pub mod indexer;
 mod renderer;
 
-use self::font::{Family, FontStyle};
 use ttf_parser::GlyphId;
 
 #[derive(Clone, Debug)]
@@ -56,5 +54,8 @@ pub struct Glyph {
     dim: Rect,
 }
 
+pub use fonts::{FontIndexer, Indexer};
 pub use geom::{Point, Rect};
 pub use renderer::TextRenderer;
+
+use self::fonts::{Family, FontStyle};

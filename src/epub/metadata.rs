@@ -1,7 +1,7 @@
 use quick_xml::events::Event;
 use quick_xml::Reader;
 
-use crate::{text_to_string, Error};
+use super::{text_to_string, EpubError};
 
 #[derive(Debug, Default)]
 #[allow(dead_code)]
@@ -13,7 +13,7 @@ pub struct Metadata {
     published: Option<String>,
 }
 impl Metadata {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, Error> {
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, EpubError> {
         let mut title = None;
         let mut language = None;
         let mut identifier = None;
@@ -32,13 +32,13 @@ impl Metadata {
                         author = reader
                             .read_text(e.name())
                             .map(|c| Some(c.into_owned()))
-                            .map_err(|_| Error::StringParse)?;
+                            .map_err(|_| EpubError::StringParse)?;
                     }
                     b"published" => {
                         published = reader
                             .read_text(e.name())
                             .map(|c| Some(c.into_owned()))
-                            .map_err(|_| Error::StringParse)?;
+                            .map_err(|_| EpubError::StringParse)?;
                     }
                     _ => (),
                 },
@@ -48,9 +48,9 @@ impl Metadata {
             }
         }
         Ok(Self {
-            title: title.ok_or(Error::XmlField("title".into()))?,
-            language: language.ok_or(Error::XmlField("language".into()))?,
-            identifier: identifier.ok_or(Error::XmlField("identifier".into()))?,
+            title: title.ok_or(EpubError::XmlField("title".into()))?,
+            language: language.ok_or(EpubError::XmlField("language".into()))?,
+            identifier: identifier.ok_or(EpubError::XmlField("identifier".into()))?,
             author,
             published,
         })

@@ -1,7 +1,7 @@
 use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 
-use crate::Error;
+use super::EpubError;
 
 #[derive(Debug, Default)]
 pub struct Spine {
@@ -9,7 +9,7 @@ pub struct Spine {
     itemrefs: Vec<String>,
 }
 impl Spine {
-    pub fn extract(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Spine, Error> {
+    pub fn extract(element: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Spine, EpubError> {
         let toc = Some(find_attribute(element, reader, b"toc")?);
         let mut itemrefs = Vec::new();
         loop {
@@ -26,7 +26,7 @@ impl Spine {
         }
 
         Ok(Self {
-            _toc: toc.ok_or(Error::XmlField("toc".into()))?,
+            _toc: toc.ok_or(EpubError::XmlField("toc".into()))?,
             itemrefs,
         })
     }
@@ -43,7 +43,7 @@ fn find_attribute(
     element: &BytesStart,
     reader: &mut Reader<&[u8]>,
     key: &[u8],
-) -> Result<String, Error> {
+) -> Result<String, EpubError> {
     for attr in element.attributes() {
         let attr = attr?;
         if attr.key.as_ref() == key {
@@ -53,7 +53,7 @@ fn find_attribute(
                 .map_err(Into::into);
         }
     }
-    Err(Error::XmlAttribute)
+    Err(EpubError::XmlAttribute)
 }
 
 #[cfg(test)]

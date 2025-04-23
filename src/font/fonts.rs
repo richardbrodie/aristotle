@@ -35,7 +35,7 @@ pub trait Faces {
     fn styles(&self) -> impl Iterator<Item = FontStyle>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Family {
     pub name: String,
     pub faces: Vec<Face>,

@@ -20,6 +20,7 @@ const FONT_PATHS: [&str; 4] = [
     "testfiles/OpenSans-Italic.ttf",
 ];
 const SHORT: &str = "Hello world, hello";
+const LONG: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
 
 fn main() {
     let event_loop = EventLoop::new().unwrap();
@@ -55,7 +56,7 @@ impl App {
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
         self.glyphs.clear_text();
-        self.glyphs.set_text(SHORT);
+        self.glyphs.set_text(LONG);
     }
 }
 impl ApplicationHandler for App {
@@ -80,14 +81,14 @@ impl ApplicationHandler for App {
                 Key::Character("+") => {
                     if let Some(win) = self.window.as_ref() {
                         let fs = self.glyphs.font_size;
-                        self.glyphs.set_font_size(fs + 4.0);
+                        self.glyphs.set_font_size(fs + 2.0);
                         win.request_redraw();
                     }
                 }
                 Key::Character("-") => {
                     if let Some(win) = self.window.as_ref() {
                         let fs = self.glyphs.font_size;
-                        self.glyphs.set_font_size(fs - 4.0);
+                        self.glyphs.set_font_size(fs - 2.0);
                         win.request_redraw();
                     }
                 }

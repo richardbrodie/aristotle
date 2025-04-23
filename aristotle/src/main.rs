@@ -210,8 +210,8 @@ impl ApplicationHandler for App {
                             });
                         }
 
-                        surface_buffer.present().unwrap();
-                        //event_loop.exit();
+                        //surface_buffer.present().unwrap();
+                        event_loop.exit();
                     }
                 }
             }

@@ -7,6 +7,12 @@ mod manifest;
 mod metadata;
 mod spine;
 
+use std::borrow::Cow;
+
+pub use book::Book;
+pub use element::Element;
+use quick_xml::events::attributes::AttrError;
+
 #[derive(Debug)]
 pub enum Error {
     XmlDocument(quick_xml::Error),
@@ -36,8 +42,24 @@ fn text_to_string(c: Result<Cow<str>, quick_xml::Error>) -> Result<String, Error
     c.map(|i| i.into_owned()).map_err(|_| Error::StringParse)
 }
 
-use std::borrow::Cow;
+#[derive(Debug, Default, Clone, Copy)]
+pub enum TextStyle {
+    #[default]
+    Regular,
+    Italic,
+    Bold,
+}
 
-pub use book::Book;
-pub use element::Element;
-use quick_xml::events::attributes::AttrError;
+#[derive(Debug, Default, Clone)]
+pub struct TextElement {
+    pub style: TextStyle,
+    pub content: String,
+}
+
+#[derive(Debug)]
+pub enum ContentElement {
+    Heading(TextElement),
+    Paragraph,
+    Inline(TextElement),
+    Linebreak,
+}

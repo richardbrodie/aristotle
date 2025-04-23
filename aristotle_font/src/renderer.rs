@@ -1,7 +1,7 @@
 use crate::builder::Builder;
 use crate::fonts::{Faces, Family, FontStyle};
 use crate::geom::{Point, Rect};
-use crate::{Error, Glyph, RenderingConfig, TextObject, TypesetObject};
+use crate::{ContentElement, Error, Glyph, RenderingConfig, TextObject, TypesetObject};
 use ttf_parser::{Face, GlyphId};
 
 pub struct TextRenderer {
@@ -61,9 +61,36 @@ impl TextRenderer {
         0.0
     }
 
-    pub fn typeset(&mut self, text: &TextObject, pos: Point) -> Result<TypesetObject, Error> {
+    pub fn typeset(&mut self, text: &ContentElement, pos: Point) -> Result<TypesetObject, Error> {
         // TODO: make this cleaner
         let family = self.font.as_ref().unwrap();
+        let face = family.get_face(FontStyle::Regular).unwrap();
+        let scale_factor = face.scale_factor(self.point_size);
+        let face = face.as_face();
+        let scaled_height = face.height() as f32 * scale_factor;
+
+        if let ContentElement::Linebreak = text {
+            let caret = Point::new(0.0, pos.y + scaled_height);
+            return Ok(TypesetObject {
+                start: pos,
+                caret,
+                ..Default::default()
+            });
+        }
+        if let ContentElement::Paragraph = text {
+            let gid = face.glyph_index(' ').unwrap();
+            let hadv = face.glyph_hor_advance(gid).unwrap() as f32 * scale_factor;
+            let caret = Point::new(pos.x + (hadv * 8.0), pos.y);
+            return Ok(TypesetObject {
+                start: pos,
+                caret,
+                ..Default::default()
+            });
+        }
+
+        let ContentElement::Text(text) = text else {
+            return Err(Error::Typeset);
+        };
         let style = text.style.unwrap_or(FontStyle::Regular);
         let face = family.get_face(style).unwrap();
         let scale_factor = face.scale_factor(text.size.unwrap_or(self.point_size));

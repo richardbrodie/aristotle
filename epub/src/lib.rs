@@ -7,7 +7,8 @@ mod spine;
 
 #[derive(Debug)]
 pub enum Error {
-    Xml,
+    XmlDocument,
+    XmlField,
     File,
     Zip,
     StringParse,

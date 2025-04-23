@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use super::manifest::ManifestItem;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum MediaType {
     Image,
     Xhtml,
@@ -39,7 +39,7 @@ impl Element {
             id: value.id().to_owned(),
             title: None,
             mediatype: value.mediatype(),
-            path: value.href().to_owned(),
+            path: value.href().into(),
         }
     }
     pub fn id(&self) -> &str {

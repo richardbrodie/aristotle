@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul};
 
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -8,6 +8,14 @@ pub struct Point {
 impl Point {
     pub fn new(x: f32, y: f32) -> Self {
         Self { x, y }
+    }
+    pub fn add_x(mut self, x: f32) -> Self {
+        self.x += x;
+        self
+    }
+    pub fn add_y(mut self, y: f32) -> Self {
+        self.y += y;
+        self
     }
 }
 

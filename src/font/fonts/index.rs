@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use ttf_parser::PlatformId;
 
 use super::face::Face;
-use super::{Family, FontStyle};
+use super::family::Family;
+use super::style::FontStyle;
 
 pub struct IndexedFont {
     pub path: PathBuf,
@@ -30,10 +31,10 @@ impl IndexedFont {
     }
 }
 
-pub trait Indexer {
-    fn get_family(&self, family: &str) -> Option<Family>;
-    fn families(&self) -> impl Iterator<Item = &str>;
-}
+// pub trait Indexer {
+//     fn get_family(&self, family: &str) -> Option<Family>;
+//     fn families(&self) -> impl Iterator<Item = &str>;
+// }
 
 pub struct FontIndexer {
     fonts: HashMap<String, Vec<IndexedFont>>,
@@ -55,10 +56,8 @@ impl FontIndexer {
         });
         Self { fonts }
     }
-}
 
-impl Indexer for FontIndexer {
-    fn get_family(&self, family: &str) -> Option<Family> {
+    pub fn get_family(&self, family: &str) -> Option<Family> {
         self.fonts.get(family).map(|v| {
             let faces = v.iter().map(Face::new).collect();
             Family {
@@ -67,7 +66,7 @@ impl Indexer for FontIndexer {
             }
         })
     }
-    fn families(&self) -> impl Iterator<Item = &str> {
+    pub fn families(&self) -> impl Iterator<Item = &str> {
         std::iter::empty()
     }
 }

@@ -1,12 +1,8 @@
 use crate::builder::Builder;
+use crate::font::{Faces, Family};
 use crate::geom::{Point, Rect};
+use crate::{Error, FontStyle, Glyph, RenderingConfig, TextObject, TypesetObject};
 use ttf_parser::{Face, GlyphId};
-
-pub struct Glyph {
-    gid: GlyphId,
-    pos: Point,
-    dim: Rect,
-}
 
 fn scale_factor(font_size: f32, font: &Face) -> f32 {
     let px_per_em = font_size * (96.0 / 72.0);
@@ -15,68 +11,24 @@ fn scale_factor(font_size: f32, font: &Face) -> f32 {
 }
 
 pub struct GlyphHandler {
-    font_data: Vec<u8>,
-    pub width: u32,
-    height: u32,
-    pub font_size: f32,
-    scale_factor: f32,
-    raw_text: String,
-    typeset_text: Vec<Glyph>,
+    point_size: f32,
+    pub font: Option<Family>,
+    pub canvas_width: u32,
+    canvas_height: u32,
 }
 impl GlyphHandler {
-    pub fn new(path: &str) -> Self {
-        let font_path = path;
-        let font_data = std::fs::read(font_path).unwrap();
-        let face = Face::parse(&font_data, 0).unwrap();
-        dbg!(face.line_gap());
-        dbg!(face.width());
-
-        let font_size = 24.0;
-        let scale_factor = scale_factor(font_size, &face);
-
+    pub fn new(config: &RenderingConfig) -> Self {
         Self {
-            font_data,
-            width: 0,
-            height: 0,
-            font_size,
-            scale_factor,
-            raw_text: String::new(),
-            typeset_text: vec![],
+            font: config.font.clone(),
+            point_size: config.point_size,
+            canvas_width: config.width,
+            canvas_height: config.height,
         }
     }
 
-    //fn load_font(&mut self) {
-    //    println!("loading font {}", self.font_idx);
-    //    let font_path = FONT_PATHS[self.font_idx];
-    //    self.font_data = std::fs::read(font_path).unwrap();
-    //    self.typeset();
-    //}
-
-    pub fn get_face(&self) -> Face {
-        let face = Face::parse(&self.font_data, 0).unwrap();
-        return face;
-    }
-
     pub fn set_buffer_size(&mut self, width: u32, height: u32) {
-        self.width = width;
-        self.height = height;
-        self.typeset();
-    }
-    pub fn set_font_size(&mut self, size: f32) {
-        self.font_size = size;
-        let face = Face::parse(&self.font_data, 0).unwrap();
-        self.scale_factor = scale_factor(size, &face);
-        self.typeset();
-    }
-
-    pub fn set_text(&mut self, text: &str) {
-        self.raw_text.push_str(text);
-        self.typeset();
-    }
-
-    pub fn clear_text(&mut self) {
-        self.raw_text.truncate(0);
-        self.typeset_text.truncate(0);
+        self.canvas_width = width;
+        self.canvas_height = height;
     }
 
     fn kern(face: &Face, left: Option<GlyphId>, right: GlyphId) -> f32 {
@@ -100,25 +52,30 @@ impl GlyphHandler {
         return 0.0;
     }
 
-    fn typeset(&mut self) {
-        let face = Face::parse(&self.font_data, 0).unwrap();
-        self.typeset_text.truncate(0);
+    pub fn typeset(&mut self, text: &TextObject, pos: Point) -> Result<TypesetObject, Error> {
+        if self.font.is_none() {
+            return Err(Error::Typeset);
+        }
+        let font = self.font.as_ref().unwrap();
+        let face = font.get_face(FontStyle::Regular).unwrap();
+        let scale_factor = scale_factor(self.point_size, &face);
         let mut last = None;
-        let mut caret = Point::default();
-        let scaled_height = face.height() as f32 * self.scale_factor;
-        for c in self.raw_text.chars() {
+        let mut caret = pos;
+        let scaled_height = face.height() as f32 * scale_factor;
+        let mut glyphs = vec![];
+        for c in text.raw_text.chars() {
             let gido = face.glyph_index(c);
             if gido.is_none() {
                 continue;
             }
             let gid = gido.unwrap();
-            let hadv = face.glyph_hor_advance(gid).unwrap() as f32 * self.scale_factor;
+            let hadv = face.glyph_hor_advance(gid).unwrap() as f32 * scale_factor;
             //- face.glyph_hor_side_bearing(gid).unwrap() as f32 * self.scale_factor;
-            if caret.x + hadv >= self.width as f32 {
+            if caret.x + hadv >= self.canvas_width as f32 {
                 caret = Point::new(0.0, caret.y + scaled_height);
             }
-            if caret.y + scaled_height > self.height as f32 {
-                return;
+            if caret.y + scaled_height > self.canvas_height as f32 {
+                return Ok(TypesetObject::new(glyphs, pos, caret));
             }
             let pos = caret;
             caret.x += hadv;
@@ -135,23 +92,29 @@ impl GlyphHandler {
                 max: Point::new(x_max, y_max),
             };
 
-            self.typeset_text.push(Glyph { gid, pos, dim })
+            glyphs.push(Glyph { gid, pos, dim })
         }
+        return Ok(TypesetObject::new(glyphs, pos, caret));
     }
 
-    pub fn raster<F>(&self, mut pix_func: F)
+    pub fn raster<F>(&self, text: &[Glyph], mut pix_func: F) -> Result<(), Error>
     where
         F: FnMut(u32, u32, u8),
     {
-        let font = self.get_face();
-        let mut builder = Builder::new(font.descender(), self.scale_factor);
-        for g in self.typeset_text.iter() {
+        if self.font.is_none() {
+            return Err(Error::Typeset);
+        }
+        let font = self.font.as_ref().unwrap();
+        let face = font.get_face(FontStyle::Regular).unwrap();
+        let scale_factor = scale_factor(self.point_size, &face);
+        let mut builder = Builder::new(face.descender(), scale_factor);
+        for g in text.iter() {
             let min = g.dim.min;
             let max = g.dim.max;
-            let w = (2.0 * max.x * self.scale_factor).ceil();
-            let h = ((max.y - min.y) * self.scale_factor).ceil();
+            let w = (2.0 * max.x * scale_factor).ceil();
+            let h = ((max.y - min.y) * scale_factor).ceil();
             builder.reset(w, h);
-            if let Some(og) = font.outline_glyph(g.gid, &mut builder) {
+            if let Some(og) = face.outline_glyph(g.gid, &mut builder) {
                 builder.rasteriser.for_each_pixel_2d(|x, y, v| {
                     //convert 0-1 range to 0-255
                     let mut byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
@@ -163,10 +126,10 @@ impl GlyphHandler {
                         }
                     }
 
-                    let bbox_min_x = og.x_min as f32 * self.scale_factor;
-                    let bbox_max_x = og.x_max as f32 * self.scale_factor;
-                    let bbox_min_y = (og.y_min as f32 - min.y) * self.scale_factor;
-                    let bbox_max_y = (og.y_max as f32 - min.y) * self.scale_factor;
+                    let bbox_min_x = og.x_min as f32 * scale_factor;
+                    let bbox_max_x = og.x_max as f32 * scale_factor;
+                    let bbox_min_y = (og.y_min as f32 - min.y) * scale_factor;
+                    let bbox_max_y = (og.y_max as f32 - min.y) * scale_factor;
 
                     // don't draw pixels we know are outside the bbox
                     if x < bbox_min_x as u32
@@ -182,10 +145,10 @@ impl GlyphHandler {
 
                     // draw the bbox
                     if cfg!(debug_assertions) {
-                        if x == (og.x_min as f32 * self.scale_factor) as u32
-                            || x == (og.x_max as f32 * self.scale_factor) as u32
-                            || y == ((og.y_min as f32 - min.y) as f32 * self.scale_factor) as u32
-                            || y == ((og.y_max as f32 - min.y) as f32 * self.scale_factor) as u32
+                        if x == (og.x_min as f32 * scale_factor) as u32
+                            || x == (og.x_max as f32 * scale_factor) as u32
+                            || y == ((og.y_min as f32 - min.y) as f32 * scale_factor) as u32
+                            || y == ((og.y_max as f32 - min.y) as f32 * scale_factor) as u32
                         {
                             byte = 0;
                         }
@@ -207,5 +170,6 @@ impl GlyphHandler {
                 });
             }
         }
+        Ok(())
     }
 }

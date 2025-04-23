@@ -9,16 +9,12 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-use aristotle_font::GlyphHandler;
+use aristotle_font::{
+    indexer::FontIndexer, indexer::Indexer, GlyphHandler, Point, RenderingConfig, TextObject,
+};
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
 
-const FONT_PATHS: [&str; 4] = [
-    "testfiles/Vollkorn-Regular.otf",
-    "testfiles/Exo2-Light.otf",
-    "testfiles/Mido.otf",
-    "testfiles/OpenSans-Italic.ttf",
-];
 const SHORT: &str = "Hello world, hello";
 const LONG: &str = "Born in 1935 in Sceaux in the Paris suburbs, Delon was expelled from several schools before leaving at 14 to work in a butcher’s shop. After a stint in the navy (during which he saw combat in France’s colonial war in Vietnam), he was dishonourably discharged in 1956 and drifted into acting. He was spotted by Hollywood producer David O Selznick at Cannes and signed to a contract, but decided to try his luck in French cinema and made his debut with a small role in Yves Allégret’s 1957 thriller Send a Woman When the Devil Fails.";
 
@@ -34,15 +30,26 @@ pub struct App {
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
     glyphs: GlyphHandler,
+    font_index: FontIndexer,
+    text: Vec<TextObject>,
 }
 
 impl App {
     pub fn new() -> Self {
-        let glyphs = GlyphHandler::new(FONT_PATHS[0]);
+        let indexer = FontIndexer::new("testfiles");
+        let config = RenderingConfig {
+            point_size: 24.0,
+            width: 640,
+            height: 480,
+            font: None,
+        };
+        let glyphs = GlyphHandler::new(&config);
         Self {
             window: None,
             surface: None,
             glyphs,
+            text: vec![],
+            font_index: indexer,
         }
     }
     pub fn init(&mut self, event_loop: &ActiveEventLoop) {
@@ -51,12 +58,14 @@ impl App {
                 .create_window(Window::default_attributes())
                 .unwrap(),
         );
+        let fam = self.font_index.get_family("Vollkorn").unwrap();
+        self.glyphs.font = Some(fam);
 
         let context = softbuffer::Context::new(window.clone()).unwrap();
         self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
         self.window = Some(window);
-        self.glyphs.clear_text();
-        self.glyphs.set_text(LONG);
+        //self.glyphs.clear_text();
+        //self.glyphs.set_text(LONG);
     }
 }
 impl ApplicationHandler for App {
@@ -80,23 +89,45 @@ impl ApplicationHandler for App {
             } => match key.as_ref() {
                 Key::Character("+") => {
                     if let Some(win) = self.window.as_ref() {
-                        let fs = self.glyphs.font_size;
-                        self.glyphs.set_font_size(fs + 2.0);
-                        win.request_redraw();
+                        //let mut config = self.glyphs.config();
+                        //config.point_size += 2.0;
+                        //self.glyphs.update_config(&config);
+                        //win.request_redraw();
                     }
                 }
                 Key::Character("-") => {
                     if let Some(win) = self.window.as_ref() {
-                        let fs = self.glyphs.font_size;
-                        self.glyphs.set_font_size(fs - 2.0);
-                        win.request_redraw();
+                        //let mut config = self.glyphs.config();
+                        //config.point_size -= 2.0;
+                        //self.glyphs.update_config(&config);
+                        //win.request_redraw();
                     }
                 }
                 Key::Named(NamedKey::Space) => {
                     if let Some(win) = self.window.as_ref() {
-                        self.glyphs.set_text("hello");
+                        let to = TextObject {
+                            start_pos: Point::default(),
+                            raw_text: SHORT.to_owned(),
+                            ..Default::default()
+                        };
+                        self.text.push(to);
                         win.request_redraw();
                     }
+                    //if let Some(win) = self.window.as_ref() {
+                    //    self.glyphs.set_text("hello");
+                    //    win.request_redraw();
+                    //}
+                    //if let Some(win) = self.window.as_ref() {
+                    //    let mut config = self.glyphs.config();
+                    //    if self.font == 0 {
+                    //        self.font = 1;
+                    //    } else {
+                    //        self.font = 0;
+                    //    }
+                    //    config.font_path = FONT_PATHS[self.font].to_owned();
+                    //    self.glyphs.update_config(&config);
+                    //    win.request_redraw();
+                    //}
                 }
                 Key::Named(NamedKey::Escape) => {
                     event_loop.exit();
@@ -127,13 +158,20 @@ impl ApplicationHandler for App {
                             }
                         }
 
-                        self.glyphs.raster(|x, y, z| {
-                            let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
-                            let idx = x as usize + y as usize * self.glyphs.width as usize;
-                            surface_buffer[idx] = surface_buffer[idx].min(c);
-                        });
+                        let caret = Point::default();
+                        if self.text.len() > 0 {
+                            let t = self.glyphs.typeset(&self.text[0], caret).unwrap();
+                            // caret = t.caret;
+                            let _ = self.glyphs.raster(&t.glyphs, |x, y, z| {
+                                let c = z as u32 | (z as u32) << 8 | (z as u32) << 16;
+                                let idx =
+                                    x as usize + y as usize * self.glyphs.canvas_width as usize;
+                                surface_buffer[idx] = surface_buffer[idx].min(c);
+                            });
+                        }
 
                         surface_buffer.present().unwrap();
+                        //event_loop.exit();
                     }
                 }
             }

@@ -1,28 +1,60 @@
 mod builder;
+mod font;
 mod geom;
 mod handler;
-mod indexer;
+pub mod indexer;
 
-#[derive(Clone, Copy, Default, Debug, PartialEq)]
-pub enum FontStyle {
-    #[default]
-    Regular,
-    Bold,
-    Italic,
-    BoldItalic,
-    Mono,
+use self::font::{Family, FontStyle};
+use ttf_parser::GlyphId;
+
+#[derive(Clone, Debug)]
+pub enum Error {
+    Typeset,
 }
-impl From<&str> for FontStyle {
-    fn from(value: &str) -> Self {
-        match value {
-            "Regular" => Self::Regular,
-            "Bold" => Self::Bold,
-            "Italic" => Self::Italic,
-            "BoldItalic" => Self::BoldItalic,
-            "Mono" | "Book" => Self::Mono,
-            _ => Self::Regular,
+
+#[derive(Debug)]
+pub struct RenderingConfig {
+    pub point_size: f32,
+    pub width: u32,
+    pub height: u32,
+    pub font: Option<Family>,
+}
+
+#[derive(Clone, Default)]
+pub struct FontWeight(f32);
+
+#[derive(Clone, Default)]
+pub struct TextObject {
+    pub start_pos: Point,
+    pub end_pos: Option<Point>,
+    pub raw_text: String,
+    pub size: Option<f32>,
+    pub style: Option<FontStyle>,
+    pub weight: Option<FontWeight>,
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct TypesetObject {
+    pub start: Point,
+    pub caret: Point,
+    pub glyphs: Vec<Glyph>,
+}
+impl TypesetObject {
+    pub fn new(glyphs: Vec<Glyph>, start: Point, caret: Point) -> Self {
+        Self {
+            start,
+            glyphs,
+            caret,
         }
     }
 }
+
+#[derive(Clone, Default, Debug)]
+pub struct Glyph {
+    gid: GlyphId,
+    pos: Point,
+    dim: Rect,
+}
+
+pub use geom::{Point, Rect};
 pub use handler::GlyphHandler;
-pub use indexer::{Faces, Indexer};

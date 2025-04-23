@@ -24,6 +24,9 @@ fn main() {
     let n = b.next_item("item5").unwrap();
     println!("item5: {}", n.id());
 
-    let c = b.content("item5").unwrap();
-    dbg!(c.content());
+    let c = b.content("pg-header").unwrap();
+    let c = c.content();
+    for i in 0..5 {
+        dbg!(&c[i]);
+    }
 }

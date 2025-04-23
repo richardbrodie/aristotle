@@ -33,7 +33,7 @@ impl Book {
             let _ = container.read_to_end(&mut file_bytes).unwrap();
         }
         let file_contents = std::str::from_utf8(&file_bytes).unwrap();
-        let rootfile = find_rootfile(&file_contents)?;
+        let rootfile = find_rootfile(file_contents)?;
         let contents_dir = rootfile.parent().unwrap().to_owned();
 
         // parse the contents.opf
@@ -122,10 +122,8 @@ fn find_rootfile(xml: &str) -> Result<PathBuf, Error> {
     loop {
         match reader.read_event() {
             Ok(Event::Empty(ref e)) if e.name().as_ref() == b"rootfile" => {
-                if let Ok(attr) = e.try_get_attribute("full-path") {
-                    if let Some(v) = attr {
-                        return cow_to_string(v.value).map(PathBuf::from);
-                    }
+                if let Ok(Some(attr)) = e.try_get_attribute("full-path") {
+                    return cow_to_string(attr.value).map(PathBuf::from);
                 }
             }
             Ok(Event::Eof) => break, // exits the loop when reaching end of file

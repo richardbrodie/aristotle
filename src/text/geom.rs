@@ -48,8 +48,8 @@ impl Mul<f32> for Point {
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Rect {
-    pub width: u32,
-    pub height: u32,
+    pub width: usize,
+    pub height: usize,
 }
 // impl Mul<f32> for Rect {
 //     type Output = Self;

@@ -43,7 +43,7 @@ impl BookHandler {
             let c = b.config.read().unwrap();
             b.current_page = 0;
             b.current_chapter = Some(item);
-            b.pages = paginate(&node, &c);
+            b.pages = paginate(&node, &c, &mut b.book);
         }
 
         Ok(b)
@@ -54,7 +54,7 @@ impl BookHandler {
             let content = self.book.content(chap)?;
 
             let c = self.config.read().unwrap();
-            self.pages = paginate(content.node(), &c);
+            self.pages = paginate(content.node(), &c, &mut self.book);
         }
         Ok(())
     }
@@ -76,7 +76,7 @@ impl BookHandler {
             .map_err(|_| Error::NoChapter)?;
 
             let c = self.config.read().unwrap();
-            let pages = paginate(&node, &c);
+            let pages = paginate(&node, &c, &mut self.book);
             self.pages = pages;
             self.current_chapter = Some(item);
             self.current_page = 0;
@@ -95,7 +95,7 @@ impl BookHandler {
             }
             .map_err(|_| Error::NoChapter)?;
             let c = self.config.read().unwrap();
-            let pages = paginate(&node, &c);
+            let pages = paginate(&node, &c, &mut self.book);
             self.pages = pages;
             self.current_chapter = Some(item);
             self.current_page = self.pages.len() - 1;

@@ -13,9 +13,6 @@ impl Content {
             node,
         })
     }
-    pub fn id(&self) -> &str {
-        &self.item.id()
-    }
     pub fn node(&self) -> &Node {
         &self.node
     }

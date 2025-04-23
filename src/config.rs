@@ -13,6 +13,8 @@ pub struct Config {
     pub font_size: f32,
     pub horizontal_margin: u8,
     pub vertical_margin: u8,
+    pub page_width: usize,
+    pub page_height: usize,
 }
 impl Config {
     pub fn load_config() -> Self {
@@ -41,6 +43,8 @@ impl Config {
             font_size: 18.0,
             horizontal_margin: 16,
             vertical_margin: 16,
+            page_width: 600,
+            page_height: 800,
         }
     }
 }

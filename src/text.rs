@@ -5,7 +5,7 @@ pub mod geom;
 pub mod typeset;
 
 use fonts::Family;
-use geom::{Point, Rect};
+use geom::Point;
 use ttf_parser::GlyphId;
 
 pub use error::FontError;

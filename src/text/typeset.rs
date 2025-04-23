@@ -2,7 +2,6 @@ use ttf_parser::{Face, GlyphId};
 
 use super::caret::Caret;
 use super::fonts::FontStyle;
-use super::geom::{Point, Rect};
 use super::{FontError, Glyph, TypesetConfig};
 
 #[derive(Debug, Default)]

@@ -68,6 +68,9 @@ impl Attribute {
         let value = attr.unescape_value().unwrap().into_owned();
         Ok(Self { key, value })
     }
+    pub fn value(&self) -> &str {
+        &self.value
+    }
 }
 
 #[derive(Default, Debug, Clone)]

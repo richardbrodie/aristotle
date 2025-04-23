@@ -1,4 +1,8 @@
-use std::{fs::File, io::Read, path::Path, time::SystemTime};
+use std::{
+    fs::File,
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use quick_xml::{events::Event, Reader};
 use zip::ZipArchive;
@@ -19,6 +23,7 @@ pub struct Book {
     source_zip: Option<ZipArchive<File>>,
     index: Index,
     metadata: Metadata,
+    contents_dir: PathBuf,
     content_buffer: Vec<u8>,
 }
 
@@ -76,26 +81,35 @@ impl Book {
             }
         }
 
-        book.index = Index::new(manifest, spine, contents_dir);
+        book.index = Index::new(manifest, spine, &contents_dir);
         book.source_zip = Some(epub);
+        book.contents_dir = contents_dir;
         Ok(book)
     }
     // pub fn index(&self) -> &Index {
     //     &self.index
     // }
     pub fn file(&mut self, href: &str) -> Result<&[u8], Error> {
-        let start = SystemTime::now();
+        let mut path = PathBuf::from(href);
+        let parent = path.parent().unwrap();
+        if parent != self.contents_dir {
+            path = self.contents_dir.join(&path);
+        }
+        let href = path.to_str().unwrap();
         let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
         read_document(zip, href, &mut self.content_buffer)?;
-        tracing::info!("read content: {:?}", start.elapsed());
         Ok(&self.content_buffer)
     }
+
+    // pub fn image(&mut self, path: &str) -> Result<(), Error> {
+    //     let path = self.contents_dir.join(path);
+    //     let path_str = path.to_str().unwrap();
+    //     let data = self.file(path_str).unwrap();
+    //     Ok(())
+    // }
     pub fn content(&mut self, elem: &IndexElement) -> Result<Content, Error> {
         let data = self.file(elem.path()).unwrap();
-        let start = SystemTime::now();
-        let c = Content::new(elem, &data).map_err(|e| e.into());
-        tracing::info!("parse content: {:?}", start.elapsed());
-        c
+        Content::new(elem, &data).map_err(|e| e.into())
     }
 
     pub fn first(&mut self) -> Result<Content, Error> {

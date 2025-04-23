@@ -1,12 +1,10 @@
-use std::ops::DerefMut;
-
-use crate::draw;
-use crate::epub::{ElementVariant, Node};
+use crate::draw::{Canvas, Error, Image};
+use crate::epub::{Book, ElementVariant, Node};
 use crate::text::caret::Caret;
 use crate::text::fonts::{Family, FontStyle};
 use crate::text::geom::Point;
 use crate::text::typeset::{TResult, TypesetText};
-use crate::text::{typeset, FontError, TypesetConfig};
+use crate::text::{typeset, TypesetConfig};
 
 enum BreakType {
     Line,
@@ -17,6 +15,7 @@ enum BreakType {
 enum PageElement {
     Text(TypesetText),
     Hr { start: Point, end: Point },
+    Image(Point, crate::draw::Image),
 }
 
 #[derive(Debug, Default)]
@@ -25,18 +24,19 @@ pub struct Page {
 }
 
 impl Page {
-    pub fn raster<B>(&self, fam: &Family, width: usize, buffer: &mut B) -> Result<(), FontError>
-    where
-        B: DerefMut<Target = [u32]>,
-    {
-        self.text_elements.iter().try_for_each(|e| match e {
-            PageElement::Text(t) => draw::text(fam, t, width, buffer),
-            PageElement::Hr { start, end } => draw::horizontal_line(start, end, width, buffer),
-        })
+    pub fn raster(&self, fam: &Family, canvas: &mut Canvas) -> Result<(), Error> {
+        for e in &self.text_elements {
+            match e {
+                PageElement::Text(t) => canvas.text(fam, t)?,
+                PageElement::Hr { start, end } => canvas.draw_line(start, end)?,
+                PageElement::Image(point, image) => canvas.image(point, image),
+            }
+        }
+        Ok(())
     }
 }
 
-pub fn paginate(content: &Node, config: &TypesetConfig) -> Vec<Page> {
+pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<Page> {
     let mut pages = vec![];
     let mut p = Page::default();
 
@@ -65,7 +65,20 @@ pub fn paginate(content: &Node, config: &TypesetConfig) -> Vec<Page> {
                     text_type = FontStyle::Italic;
                 }
                 ElementVariant::Image => {
-                    // dbg!(elem);
+                    let attr = elem.attribute("xlink:href").unwrap();
+                    let content = book.file(attr.value()).unwrap();
+                    let image = Image::open(content).unwrap();
+
+                    let img_height = config.page_height - 2 * config.vertical_margin as usize;
+                    let scale = img_height as f32 / image.size.height as f32;
+                    let small_image = image.rescale(scale);
+                    let hoffset = (config.page_width
+                        - (2 * config.horizontal_margin) as usize
+                        - small_image.size.width)
+                        / 2;
+
+                    let point = caret.point().add_x(hoffset as f32);
+                    p.text_elements.push(PageElement::Image(point, small_image));
                 }
                 ElementVariant::Br => {
                     break_type = Some(BreakType::Line);

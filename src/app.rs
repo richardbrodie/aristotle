@@ -1,15 +1,15 @@
-use std::num::NonZeroU32;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 use crate::book_handler::{self, BookHandler};
 use crate::config::Config;
+use crate::draw::Canvas;
 use crate::text::fonts::FontIndexer;
+use crate::text::geom::Rect;
 use crate::text::TypesetConfig;
-use softbuffer::Surface;
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
+use winit::dpi::{PhysicalSize, Size};
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
@@ -24,7 +24,7 @@ pub enum Error {
 pub struct App {
     _font_index: FontIndexer,
     window: Option<Rc<Window>>,
-    surface: Option<Surface<Rc<Window>, Rc<Window>>>,
+    canvas: Option<Canvas>,
     config: Config,
     typeset_config: Arc<RwLock<TypesetConfig>>,
     book: BookHandler,
@@ -40,7 +40,7 @@ impl App {
             family,
             point_size: config.font_size,
             page_width: 640,
-            page_height: 480,
+            page_height: 800,
             horizontal_margin: config.horizontal_margin,
             vertical_margin: config.vertical_margin,
         };
@@ -50,7 +50,7 @@ impl App {
         Ok(Self {
             _font_index: indexer,
             window: None,
-            surface: None,
+            canvas: None,
             config,
             typeset_config: tsconfig,
             book,
@@ -58,54 +58,51 @@ impl App {
     }
 
     pub fn init(&mut self, event_loop: &ActiveEventLoop) {
-        let window = Rc::new(
-            event_loop
-                .create_window(Window::default_attributes())
-                .unwrap(),
-        );
+        let size = PhysicalSize {
+            width: self.config.page_width as u32,
+            height: self.config.page_height as u32,
+        };
+        let attrs = Window::default_attributes().with_inner_size(Size::Physical(size));
+        let window = Rc::new(event_loop.create_window(attrs).unwrap());
 
-        let context = softbuffer::Context::new(window.clone()).unwrap();
-        self.surface = softbuffer::Surface::new(&context, window.clone()).ok();
+        self.canvas = Canvas::new(
+            window.clone(),
+            Rect {
+                width: size.width as usize,
+                height: size.height as usize,
+            },
+        )
+        .ok();
+
         self.window = Some(window);
     }
     fn redraw(&mut self) {
-        if let Some(window) = self.window.as_ref() {
-            let size = window.inner_size();
-            if let Some(surface) = self.surface.as_mut() {
-                let mut surface_buffer = surface.buffer_mut().unwrap();
-
-                // fill every pixel with white
-                for x in 0..size.width {
-                    for y in 0..size.height {
-                        surface_buffer[x as usize + y as usize * size.width as usize] = 0x00ffffff;
-                    }
-                }
-
-                if let Some(page) = self.book.page() {
-                    if let Ok(conf) = self.typeset_config.read() {
-                        let wid = conf.page_width;
-                        page.raster(&conf.family, wid, &mut surface_buffer).unwrap();
-                    }
-                }
-
-                surface_buffer.present().unwrap();
-            }
-        }
+        let Some(page) = self.book.page() else {
+            tracing::info!("no book pages");
+            return;
+        };
+        let Some(canvas) = self.canvas.as_mut() else {
+            tracing::error!("canvas is None?");
+            return;
+        };
+        let Ok(config) = self.typeset_config.read() else {
+            tracing::warn!("couldn't lock typset_config");
+            return;
+        };
+        canvas.blank().unwrap();
+        page.raster(&config.family, canvas).unwrap();
+        canvas.present().unwrap();
     }
     fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if let Some(surface) = self.surface.as_mut() {
-            surface
-                .resize(
-                    NonZeroU32::new(new_size.width).unwrap(),
-                    NonZeroU32::new(new_size.height).unwrap(),
-                )
-                .unwrap();
-            if let Ok(mut conf) = self.typeset_config.write() {
-                conf.page_width = new_size.width as usize;
-                conf.page_height = new_size.height as usize;
-            }
-            self.book.repaginate().unwrap();
+        let Some(canvas) = &mut self.canvas else {
+            return;
+        };
+        canvas.resize(new_size);
+        if let Ok(mut conf) = self.typeset_config.write() {
+            conf.page_width = new_size.width as usize;
+            conf.page_height = new_size.height as usize;
         }
+        self.book.repaginate().unwrap();
     }
 }
 

@@ -23,6 +23,20 @@ pub struct Typesetter {
     params: TypesetConfig,
 }
 
+pub enum TResult<'a> {
+    Ok(Element),
+    Overflow {
+        processed: Element,
+        remainder: &'a str,
+    },
+    Error(FontError),
+}
+//impl From<Error> for TResult {
+//    fn from(e: Error) -> Self {
+//        TResult::Error(e)
+//    }
+//}
+
 impl Typesetter {
     pub fn new(config: &TypesetConfig) -> Result<Self, FontError> {
         let font = config
@@ -76,30 +90,34 @@ impl Typesetter {
         Ok(new_caret)
     }
 
-    pub fn heading(&self, caret: Point, t: &TextObject) -> Result<Element, FontError> {
+    //pub fn heading(&self, caret: Point, t: &TextObject) -> Result<Element, FontError> {
+    pub fn heading<'a>(&'a self, caret: Point, t: &'a TextObject) -> TResult<'a> {
         let style = FontStyle::Bold;
         let size = t.size.unwrap_or(self.params.point_size);
         self.typeset(caret, &t.raw_text, size, style)
     }
 
-    pub fn text(&self, caret: Point, t: &TextObject) -> Result<Element, FontError> {
+    //pub fn text(&self, caret: Point, t: &TextObject) -> Result<Element, FontError> {
+    pub fn text<'a>(&'a self, caret: Point, t: &'a TextObject) -> TResult<'a> {
         let style = t.style.unwrap_or(FontStyle::Regular);
         let size = t.size.unwrap_or(self.params.point_size);
         self.typeset(caret, &t.raw_text, size, style)
     }
 
-    fn typeset(
-        &self,
+    fn typeset<'a>(
+        &'a self,
         caret: Point,
-        text: &str,
+        text: &'a str,
         size: f32,
         style: FontStyle,
-    ) -> Result<Element, FontError> {
+    ) -> TResult<'a> {
         let font = self
             .params
             .family
             .get_face(style)
-            .ok_or(FontError::MissingFace)?;
+            .ok_or(FontError::MissingFace)
+            //.map_err(|e| TResult::Error(e))
+            .unwrap();
         let scale_factor = font.scale_factor(size);
         let face = font.as_face();
 
@@ -109,23 +127,27 @@ impl Typesetter {
 
         //let mut last = None;
         let mut word_buffer: Vec<Glyph> = vec![];
-        let mut glyph_buffer = vec![];
         let mut char_buf = vec![];
         let mut last_word = String::new();
         let mut caret = caret;
         let mut last_committed_character = 0;
         let mut count = 0;
+        let mut t = Text {
+            glyphs: vec![],
+            point_size: size,
+            style,
+        };
         for (i, c) in text.chars().enumerate() {
             if c.is_whitespace() {
                 count += word_buffer.len() + 1;
-                glyph_buffer.append(&mut word_buffer);
+                t.glyphs.append(&mut word_buffer);
                 caret.x += self.space_width;
                 last_committed_character = i;
                 last_word = String::from_iter(char_buf);
                 char_buf = vec![];
                 continue;
             }
-            let gid = face.glyph_index(c).ok_or(FontError::NoGlyph(c))?;
+            let gid = face.glyph_index(c).ok_or(FontError::NoGlyph(c)).unwrap();
 
             // char metrics
             let bearing = face.glyph_hor_side_bearing(gid).unwrap() as f32;
@@ -148,7 +170,12 @@ impl Typesetter {
                         last_committed_character,
                         i
                     );
-                    return Err(FontError::ContentOverflow(count));
+                    let e = Element { caret, text: t };
+                    let res = &text[last_committed_character..];
+                    return TResult::Overflow {
+                        processed: e,
+                        remainder: &res,
+                    };
                 }
                 caret = Point::new(self.params.horizontal_margin, caret.y + self.scaled_height);
                 for g in word_buffer.iter_mut() {
@@ -173,17 +200,9 @@ impl Typesetter {
         }
 
         // add last word
-        glyph_buffer.append(&mut word_buffer);
+        t.glyphs.append(&mut word_buffer);
 
-        let t = Element {
-            caret,
-            text: Text {
-                glyphs: glyph_buffer,
-                point_size: size,
-                style,
-            },
-        };
-        Ok(t)
+        return TResult::Ok(Element { caret, text: t });
     }
 
     fn kern(face: &Face, left: Option<GlyphId>, right: GlyphId) -> f32 {

@@ -8,7 +8,7 @@ use zip::ZipArchive;
 use crate::element::Element;
 use crate::guide::Guide;
 use crate::spine::Spine;
-use crate::{cow_to_string, Content, Error};
+use crate::{content::Content, cow_to_string, Error};
 use crate::{manifest::Manifest, metadata::Metadata};
 
 #[allow(dead_code)]

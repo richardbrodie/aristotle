@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use ttf_parser::PlatformId;
 
+use crate::text::TextError;
+
 use super::face::Face;
 use super::family::Family;
 use super::style::FontStyle;
@@ -16,25 +18,20 @@ pub struct IndexedFont {
     pub style: FontStyle,
 }
 impl IndexedFont {
-    pub fn new<P>(entry: P) -> Self
+    pub fn new<P>(entry: P) -> Result<Self, TextError>
     where
         P: AsRef<Path>,
     {
-        let bytes = std::fs::read(&entry).unwrap();
+        let bytes = std::fs::read(&entry)?;
         let (family, subfamily) = read_font_metadata(&bytes);
-        Self {
+        Ok(Self {
             path: entry.as_ref().to_owned(),
             bytes,
             family,
             style: subfamily,
-        }
+        })
     }
 }
-
-// pub trait Indexer {
-//     fn get_family(&self, family: &str) -> Option<Family>;
-//     fn families(&self) -> impl Iterator<Item = &str>;
-// }
 
 pub struct FontIndexer {
     fonts: HashMap<String, Vec<IndexedFont>>,
@@ -58,8 +55,8 @@ impl FontIndexer {
     }
 
     pub fn get_family(&self, family: &str) -> Option<Family> {
-        self.fonts.get(family).map(|v| {
-            let faces = v.iter().map(Face::new).collect();
+        self.fonts.get(family).map(|fam| {
+            let faces = fam.iter().filter_map(|face| Face::new(face).ok()).collect();
             Family {
                 name: family.to_owned(),
                 faces,
@@ -97,7 +94,7 @@ impl Iterator for IndexScanner {
                             self.dirs.push(ep);
                             continue;
                         }
-                        return Some(IndexedFont::new(entry.path()));
+                        return IndexedFont::new(entry.path()).ok();
                     }
                     None => {
                         self.files = None;

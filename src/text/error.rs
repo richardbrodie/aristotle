@@ -1,17 +1,24 @@
 use thiserror::Error;
 
-#[derive(Clone, Debug, Error)]
-pub enum FontError {
-    #[error("")]
+use super::typeset::TypesetText;
+
+#[derive(Debug, Error)]
+pub enum TextError {
+    #[error("file io")]
+    FileIO(#[from] std::io::Error),
+
+    #[error("specified face not indexed")]
     MissingFace,
-    #[error("")]
-    TtfParse,
-    #[error("")]
-    Raster,
+
+    #[error("unable to parse ttf file")]
+    TtfParse(#[from] ttf_parser::FaceParsingError),
+
     #[error("")]
     PageOverflow,
-    #[error("")]
-    ContentOverflow(usize),
-    #[error("")]
+
+    #[error("content overflowed")]
+    ContentOverflow(TypesetText, usize),
+
+    #[error("specified glyph {0} not found in font")]
     NoGlyph(char),
 }

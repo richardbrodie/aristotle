@@ -1,4 +1,4 @@
-use crate::text::FontError;
+use crate::text::TextError;
 
 use super::{index::IndexedFont, style::FontStyle};
 
@@ -10,15 +10,15 @@ pub struct Face {
     units_per_em: f32,
 }
 impl Face {
-    pub fn new(file: &IndexedFont) -> Self {
-        let f = ttf_parser::Face::parse(&file.bytes, 0).unwrap();
+    pub fn new(file: &IndexedFont) -> Result<Self, TextError> {
+        let f = ttf_parser::Face::parse(&file.bytes, 0)?;
         let units_per_em = f.units_per_em() as f32;
-        Face {
+        Ok(Face {
             bytes: file.bytes.clone(),
             _family: file.family.clone(),
             style: file.style,
             units_per_em,
-        }
+        })
     }
 
     pub fn style(&self) -> FontStyle {
@@ -30,20 +30,22 @@ impl Face {
         px_per_em / self.units_per_em
     }
 
-    pub fn scaled_height(&self, point_size: f32) -> Result<f32, FontError> {
+    pub fn scaled_height(&self, point_size: f32) -> Result<f32, TextError> {
         let scale = self.scale_factor(point_size);
         self.as_ttf_face().map(|face| scale * face.height() as f32)
     }
-    pub fn space_width(&self, point_size: f32) -> Result<f32, FontError> {
+    pub fn space_width(&self, point_size: f32) -> Result<f32, TextError> {
         let scale = self.scale_factor(point_size);
         let face = self.as_ttf_face()?;
-        let gid = face.glyph_index(' ').ok_or(FontError::TtfParse)?;
+        let gid = face
+            .glyph_index(' ')
+            .ok_or_else(|| TextError::NoGlyph(' '))?;
         face.glyph_hor_advance(gid)
-            .ok_or(FontError::TtfParse)
+            .ok_or_else(|| TextError::NoGlyph(' '))
             .map(|adv| adv as f32 * scale)
     }
 
-    pub fn as_ttf_face(&self) -> Result<ttf_parser::Face, FontError> {
-        ttf_parser::Face::parse(&self.bytes, 0).map_err(|_| FontError::TtfParse)
+    pub fn as_ttf_face(&self) -> Result<ttf_parser::Face, TextError> {
+        ttf_parser::Face::parse(&self.bytes, 0).map_err(Into::into)
     }
 }

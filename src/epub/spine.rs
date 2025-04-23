@@ -1,13 +1,13 @@
 use quick_xml::{events::Event, Reader};
 
-use super::error::ContentError;
+use super::EpubError;
 
 #[derive(Debug, Default)]
 pub struct Spine {
     pub items: Vec<String>,
 }
 impl Spine {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, ContentError> {
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, EpubError> {
         let mut depth = 1;
         let mut spine = Self::default();
         loop {
@@ -30,7 +30,7 @@ impl Spine {
                         break;
                     }
                 }
-                Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
+                Ok(Event::Eof) => return Err(EpubError::UnexpectedEof),
                 Err(e) => return Err(e.into()),
                 _ => {}
             }

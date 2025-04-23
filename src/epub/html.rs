@@ -5,7 +5,7 @@ use quick_xml::{
     Reader,
 };
 
-use super::{error::ContentError, Error};
+use super::EpubError;
 
 #[derive(Default, Debug, PartialEq, Clone, Copy)]
 pub enum ElementVariant {
@@ -30,7 +30,7 @@ pub enum ElementVariant {
     Ignored,
 }
 impl FromStr for ElementVariant {
-    type Err = Error;
+    type Err = EpubError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value.to_lowercase().as_ref() {
@@ -62,10 +62,10 @@ pub struct Attribute {
     value: String,
 }
 impl Attribute {
-    fn parse(attr: QAttribute<'_>) -> Result<Self, ()> {
+    fn parse(attr: QAttribute<'_>) -> Result<Self, EpubError> {
         let key = attr.key.into_inner();
-        let key = std::str::from_utf8(key).unwrap().to_owned();
-        let value = attr.unescape_value().unwrap().into_owned();
+        let key = std::str::from_utf8(key)?.to_owned();
+        let value = attr.unescape_value()?.into_owned();
         Ok(Self { key, value })
     }
     pub fn value(&self) -> &str {
@@ -80,22 +80,22 @@ pub struct Element {
     children: Vec<Node>,
 }
 impl Element {
-    fn new(tag: &BytesStart) -> Self {
+    fn new(tag: &BytesStart) -> Result<Self, EpubError> {
         let local_name = tag.name().local_name();
-        let parsed_name = std::str::from_utf8(local_name.into_inner()).unwrap();
-        let variant = parsed_name.parse().unwrap();
+        let parsed_name = std::str::from_utf8(local_name.into_inner())?;
+        let variant = parsed_name.parse()?;
 
         let mut attributes = vec![];
         for attr in tag.attributes().filter(|a| a.is_ok()) {
-            let attr = attr.map(|a| Attribute::parse(a).unwrap()).unwrap();
+            let attr = attr.map(|a| Attribute::parse(a).unwrap())?;
             attributes.push(attr);
         }
 
-        Self {
+        Ok(Self {
             variant,
             attributes,
             children: vec![],
-        }
+        })
     }
     pub fn variant(&self) -> ElementVariant {
         self.variant
@@ -115,15 +115,15 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn new(input: &[u8]) -> Result<Self, ContentError> {
-        let t = std::str::from_utf8(input).unwrap();
+    pub fn new(input: &[u8]) -> Result<Self, EpubError> {
+        let t = std::str::from_utf8(input)?;
         let mut reader = quick_xml::Reader::from_str(t);
         loop {
             match reader.read_event() {
                 Ok(Event::Start(ref e)) if e.name().as_ref() == b"body" => {
                     return extract(e, &mut reader);
                 }
-                Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
+                Ok(Event::Eof) => return Err(EpubError::UnexpectedEof),
                 Err(e) => return Err(e.into()),
                 _ => (),
             }
@@ -196,11 +196,11 @@ impl<'a> Iterator for NodeIterator<'a> {
     }
 }
 
-pub fn extract<'a>(tag: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Node, ContentError> {
-    let mut node = Element::new(tag);
+pub fn extract<'a>(tag: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Node, EpubError> {
+    let mut node = Element::new(tag)?;
 
     for attr in tag.attributes().filter(|a| a.is_ok()) {
-        let attr = attr.map(|a| Attribute::parse(a).unwrap()).unwrap();
+        let attr = attr.map(|a| Attribute::parse(a).unwrap())?;
         node.attributes.push(attr);
     }
     loop {
@@ -210,7 +210,7 @@ pub fn extract<'a>(tag: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Node,
                 node.children.push(child);
             }
             Ok(Event::Text(text)) => {
-                let t = std::str::from_utf8(&text).unwrap();
+                let t = std::str::from_utf8(&text)?;
                 let result: String = t.split_whitespace().collect::<Vec<_>>().join(" ");
 
                 if !result.is_empty() {
@@ -218,13 +218,13 @@ pub fn extract<'a>(tag: &BytesStart, reader: &mut Reader<&[u8]>) -> Result<Node,
                 }
             }
             Ok(Event::Empty(ref e)) => {
-                let cur = Element::new(e);
+                let cur = Element::new(e)?;
                 node.children.push(Node::Element(cur));
             }
             Ok(Event::End(_)) => {
                 return Ok(Node::Element(node));
             }
-            Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
+            Ok(Event::Eof) => return Err(EpubError::UnexpectedEof),
             Err(e) => {
                 return Err(e.into());
             }

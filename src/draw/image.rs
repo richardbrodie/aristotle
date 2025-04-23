@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, path::Path};
+use std::io::Read;
 
 use crate::text::geom::Rect;
 
@@ -15,7 +15,7 @@ impl Image {
     pub fn open<R: Read>(data: R) -> Result<Self, Error> {
         // open png
         let decoder = png::Decoder::new(data);
-        let mut reader = decoder.read_info().unwrap();
+        let mut reader = decoder.read_info()?;
         let img_info = reader.info();
 
         // get dimensions and pixel depth
@@ -27,7 +27,7 @@ impl Image {
 
         // read data to buffer
         let mut data = vec![0; reader.output_buffer_size()];
-        let info = reader.next_frame(&mut data).unwrap();
+        let info = reader.next_frame(&mut data)?;
 
         Ok(Self {
             data,
@@ -35,10 +35,6 @@ impl Image {
             pixel_size,
             size,
         })
-    }
-    pub fn load_file<T: AsRef<Path>>(path: T) -> Result<Self, Error> {
-        let image_file = File::open(path).unwrap();
-        Image::open(image_file)
     }
     pub fn rescale(&self, scale: f32) -> Self {
         let ps = self.pixel_size;

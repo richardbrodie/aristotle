@@ -1,20 +1,10 @@
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
-use crate::epub::{self, Book, Content, IndexElement};
+use crate::app::Error;
+use crate::epub::{Book, Content, IndexElement};
 use crate::page::{paginate, Page};
 use crate::text::TypesetConfig;
-
-#[derive(Debug)]
-pub enum Error {
-    NoChapter,
-    Epub(epub::Error),
-}
-impl From<epub::Error> for Error {
-    fn from(error: epub::Error) -> Self {
-        Self::Epub(error)
-    }
-}
 
 pub struct BookHandler {
     book: Book,
@@ -39,11 +29,11 @@ impl BookHandler {
 
         {
             // go to first page
-            let Content { item, node } = b.book.first().unwrap();
-            let c = b.config.read().unwrap();
+            let Content { item, node } = b.book.first()?;
+            let c = b.config.read().map_err(|_| Error::RwLock)?;
             b.current_page = 0;
             b.current_chapter = Some(item);
-            b.pages = paginate(&node, &c, &mut b.book);
+            b.pages = paginate(&node, &c, &mut b.book)?;
         }
 
         Ok(b)
@@ -53,8 +43,8 @@ impl BookHandler {
         if let Some(chap) = self.current_chapter.as_ref() {
             let content = self.book.content(chap)?;
 
-            let c = self.config.read().unwrap();
-            self.pages = paginate(content.node(), &c, &mut self.book);
+            let c = self.config.read().map_err(|_| Error::RwLock)?;
+            self.pages = paginate(content.node(), &c, &mut self.book)?;
         }
         Ok(())
     }
@@ -72,11 +62,10 @@ impl BookHandler {
             let Content { item, node } = match self.current_chapter.as_ref() {
                 Some(elem) => self.book.next(elem.id()),
                 None => self.book.first(),
-            }
-            .map_err(|_| Error::NoChapter)?;
+            }?;
 
-            let c = self.config.read().unwrap();
-            let pages = paginate(&node, &c, &mut self.book);
+            let c = self.config.read().map_err(|_| Error::RwLock)?;
+            let pages = paginate(&node, &c, &mut self.book)?;
             self.pages = pages;
             self.current_chapter = Some(item);
             self.current_page = 0;
@@ -92,10 +81,9 @@ impl BookHandler {
             let Content { item, node } = match self.current_chapter.as_ref() {
                 Some(elem) => self.book.prev(elem.id()),
                 None => self.book.first(),
-            }
-            .map_err(|_| Error::NoChapter)?;
-            let c = self.config.read().unwrap();
-            let pages = paginate(&node, &c, &mut self.book);
+            }?;
+            let c = self.config.read().map_err(|_| Error::RwLock)?;
+            let pages = paginate(&node, &c, &mut self.book)?;
             self.pages = pages;
             self.current_chapter = Some(item);
             self.current_page = self.pages.len() - 1;

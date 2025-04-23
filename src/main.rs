@@ -22,7 +22,12 @@ fn main() {
     let event_loop = EventLoop::new().unwrap();
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let config = Config::load_config();
-    let mut app = App::new(config).unwrap();
-    let _ = event_loop.run_app(&mut app);
+    let config = Config::load_config().unwrap();
+    let Ok(mut app) = App::new(config) else {
+        tracing::error!("cannot create app");
+        return;
+    };
+    if let Err(e) = event_loop.run_app(&mut app) {
+        tracing::error!("app: {:?}", e);
+    }
 }

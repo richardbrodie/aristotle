@@ -2,7 +2,7 @@ use ttf_parser::{Face, GlyphId};
 
 use super::caret::Caret;
 use super::fonts::FontStyle;
-use super::{FontError, Glyph, TypesetConfig};
+use super::{Glyph, TextError, TypesetConfig};
 
 #[derive(Debug, Default)]
 pub struct TypesetText {
@@ -11,26 +11,31 @@ pub struct TypesetText {
     pub style: FontStyle,
 }
 
-pub enum TResult {
-    Ok(TypesetText),
-    Overflow {
-        processed: TypesetText,
-        index: usize,
-    },
-    Error(FontError),
-}
+// pub enum TResult {
+//     Ok(TypesetText),
+//     Overflow {
+//         processed: TypesetText,
+//         index: usize,
+//     },
+//     Error(FontError),
+// }
 
-pub fn typeset<T>(params: &TypesetConfig, caret: &mut Caret, text: T, style: FontStyle) -> TResult
+pub fn typeset<T>(
+    params: &TypesetConfig,
+    caret: &mut Caret,
+    text: T,
+    style: FontStyle,
+) -> Result<TypesetText, TextError>
 where
     T: Iterator<Item = char>,
 {
-    let font = params.family.face(style).unwrap();
+    let font = params.family.face(style)?;
     let scale_factor = font.scale_factor(params.point_size);
-    let face = font.as_ttf_face().unwrap();
+    let face = font.as_ttf_face()?;
 
     // face metrics
     let desc = face.descender() as f32;
-    let asc = face.ascender() as f32;
+    // let asc = face.ascender() as f32;
 
     let mut word_buffer: Vec<Glyph> = vec![];
     let mut char_buf = vec![];
@@ -49,7 +54,7 @@ where
             char_buf = vec![];
             continue;
         }
-        let id = face.glyph_index(c).ok_or(FontError::NoGlyph(c)).unwrap();
+        let id = face.glyph_index(c).ok_or(TextError::NoGlyph(c))?;
 
         // char metrics
         let bearing = face.glyph_hor_side_bearing(id).unwrap() as f32;
@@ -63,10 +68,7 @@ where
             // if it would then overextend vertically
             if caret.overflows_vertically(1.0) {
                 //return the current char index
-                return TResult::Overflow {
-                    processed: t,
-                    index: count,
-                };
+                return Err(TextError::ContentOverflow(t, count));
             }
             caret.newline(1.0);
             for g in word_buffer.iter_mut() {
@@ -94,7 +96,7 @@ where
     // add last word
     t.glyphs.append(&mut word_buffer);
 
-    TResult::Ok(t)
+    Ok(t)
 }
 
 fn kern(face: &Face, left: Option<GlyphId>, right: GlyphId) -> f32 {

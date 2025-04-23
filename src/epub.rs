@@ -9,7 +9,7 @@ mod spine;
 mod zip;
 
 pub use book::Book;
-pub use error::Error;
+pub use error::EpubError;
 
 pub use content::Content;
 pub use html::ElementVariant;

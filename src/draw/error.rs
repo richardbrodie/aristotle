@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::text::FontError;
+use crate::text::TextError;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -8,5 +8,11 @@ pub enum Error {
     Softbuffer(#[from] softbuffer::SoftBufferError),
 
     #[error("font")]
-    Font(#[from] FontError),
+    Text(#[from] TextError),
+
+    #[error("file")]
+    File(#[from] std::io::Error),
+
+    #[error("png")]
+    Png(#[from] png::DecodingError),
 }

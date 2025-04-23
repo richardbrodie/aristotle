@@ -11,7 +11,7 @@ use crate::epub::spine::Spine;
 
 use super::{
     content::Content,
-    error::Error,
+    error::EpubError,
     index::{Index, IndexElement},
     manifest::Manifest,
     metadata::Metadata,
@@ -28,7 +28,7 @@ pub struct Book {
 }
 
 impl Book {
-    pub fn new<P>(path: &P) -> Result<Self, Error>
+    pub fn new<P>(path: &P) -> Result<Self, EpubError>
     where
         P: AsRef<Path>,
     {
@@ -51,7 +51,7 @@ impl Book {
             .to_owned();
 
         // parse the rootfile contents
-        let rootfile_path = rootfile_path.to_str().ok_or(Error::ZipFile)?;
+        let rootfile_path = rootfile_path.to_str().unwrap();
         read_document(&mut epub, rootfile_path, &mut file_bytes)?;
         let rootfile_contents = std::str::from_utf8(&file_bytes)?;
         let mut reader = Reader::from_str(rootfile_contents);
@@ -86,42 +86,43 @@ impl Book {
         book.contents_dir = contents_dir;
         Ok(book)
     }
-    // pub fn index(&self) -> &Index {
-    //     &self.index
-    // }
-    pub fn file(&mut self, href: &str) -> Result<&[u8], Error> {
+
+    pub fn file(&mut self, href: &str) -> Result<&[u8], EpubError> {
         let mut path = PathBuf::from(href);
         let parent = path.parent().unwrap();
         if parent != self.contents_dir {
             path = self.contents_dir.join(&path);
         }
         let href = path.to_str().unwrap();
-        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
+        let zip = self.source_zip.as_mut().unwrap();
         read_document(zip, href, &mut self.content_buffer)?;
         Ok(&self.content_buffer)
     }
 
-    // pub fn image(&mut self, path: &str) -> Result<(), Error> {
-    //     let path = self.contents_dir.join(path);
-    //     let path_str = path.to_str().unwrap();
-    //     let data = self.file(path_str).unwrap();
-    //     Ok(())
-    // }
-    pub fn content(&mut self, elem: &IndexElement) -> Result<Content, Error> {
-        let data = self.file(elem.path()).unwrap();
+    pub fn content(&mut self, elem: &IndexElement) -> Result<Content, EpubError> {
+        let data = self.file(elem.path())?;
         Content::new(elem, &data).map_err(|e| e.into())
     }
 
-    pub fn first(&mut self) -> Result<Content, Error> {
-        let item = self.index.first().ok_or(Error::ContentNotFound)?;
+    pub fn first(&mut self) -> Result<Content, EpubError> {
+        let item = self
+            .index
+            .first()
+            .ok_or(EpubError::ContentNotFound("[FIRST]".to_owned()))?;
         self.content(&item)
     }
-    pub fn next(&mut self, cur: &str) -> Result<Content, Error> {
-        let item = self.index.next(cur).ok_or(Error::ContentNotFound)?;
+    pub fn next(&mut self, cur: &str) -> Result<Content, EpubError> {
+        let item = self
+            .index
+            .next(cur)
+            .ok_or(EpubError::ContentNotFound(cur.to_owned()))?;
         self.content(&item)
     }
-    pub fn prev(&mut self, cur: &str) -> Result<Content, Error> {
-        let item = self.index.prev(cur).ok_or(Error::ContentNotFound)?;
+    pub fn prev(&mut self, cur: &str) -> Result<Content, EpubError> {
+        let item = self
+            .index
+            .prev(cur)
+            .ok_or(EpubError::ContentNotFound(cur.to_owned()))?;
         self.content(&item)
     }
 }

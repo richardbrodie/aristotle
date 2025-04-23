@@ -2,12 +2,14 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
-use crate::book_handler::{self, BookHandler};
+use crate::book_handler::BookHandler;
 use crate::config::Config;
-use crate::draw::Canvas;
+use crate::draw::{self, Canvas};
+use crate::epub;
 use crate::text::fonts::FontIndexer;
 use crate::text::geom::Rect;
-use crate::text::TypesetConfig;
+use crate::text::{self, TypesetConfig};
+use thiserror::Error;
 use winit::application::ApplicationHandler;
 use winit::dpi::{PhysicalSize, Size};
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -15,10 +17,34 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
-    NoFont,
-    BookHandler(book_handler::Error),
+    #[error("font error")]
+    Font(#[from] text::TextError),
+
+    #[error("draw error")]
+    Draw(#[from] draw::Error),
+
+    #[error("book error")]
+    Book(#[from] epub::EpubError),
+
+    #[error("malformed image tag")]
+    ImageTag,
+
+    #[error("missing chapter")]
+    File(#[from] std::io::Error),
+
+    #[error("toml read")]
+    TomlRead(#[from] toml::de::Error),
+
+    #[error("toml write")]
+    TomlWrite(#[from] toml::ser::Error),
+
+    #[error("rwlock")]
+    RwLock,
+
+    #[error("winit")]
+    Winit(#[from] winit::error::OsError),
 }
 
 pub struct App {
@@ -33,7 +59,7 @@ pub struct App {
 impl App {
     pub fn new(config: Config) -> Result<Self, Error> {
         let indexer = FontIndexer::new("testfiles/fonts");
-        let family = indexer.get_family(&config.family).ok_or(Error::NoFont)?;
+        let family = indexer.get_family(&config.family).unwrap();
         let path = Path::new("testfiles/epubs/frankenstein.epub");
 
         let tsconf = TypesetConfig {
@@ -45,7 +71,7 @@ impl App {
             vertical_margin: config.vertical_margin,
         };
         let tsconfig = Arc::new(RwLock::new(tsconf));
-        let book = BookHandler::new(&path, tsconfig.clone()).map_err(|e| Error::BookHandler(e))?;
+        let book = BookHandler::new(&path, tsconfig.clone())?;
 
         Ok(Self {
             _font_index: indexer,
@@ -57,13 +83,14 @@ impl App {
         })
     }
 
-    pub fn init(&mut self, event_loop: &ActiveEventLoop) {
+    pub fn init(&mut self, event_loop: &ActiveEventLoop) -> Result<(), Error> {
         let size = PhysicalSize {
             width: self.config.page_width as u32,
             height: self.config.page_height as u32,
         };
         let attrs = Window::default_attributes().with_inner_size(Size::Physical(size));
-        let window = Rc::new(event_loop.create_window(attrs).unwrap());
+        let window = event_loop.create_window(attrs)?;
+        let window = Rc::new(window);
 
         self.canvas = Canvas::new(
             window.clone(),
@@ -75,40 +102,44 @@ impl App {
         .ok();
 
         self.window = Some(window);
+        Ok(())
     }
-    fn redraw(&mut self) {
+    fn redraw(&mut self) -> Result<(), Error> {
         let Some(page) = self.book.page() else {
             tracing::info!("no book pages");
-            return;
+            return Ok(());
         };
         let Some(canvas) = self.canvas.as_mut() else {
             tracing::error!("canvas is None?");
-            return;
+            panic!();
         };
-        let Ok(config) = self.typeset_config.read() else {
-            tracing::warn!("couldn't lock typset_config");
-            return;
-        };
-        canvas.blank().unwrap();
-        page.raster(&config.family, canvas).unwrap();
-        canvas.present().unwrap();
+        let config = self.typeset_config.read().map_err(|_| Error::RwLock)?;
+        canvas.blank()?;
+        page.raster(&config.family, canvas)?;
+        canvas.present()?;
+        Ok(())
     }
-    fn resize(&mut self, new_size: PhysicalSize<u32>) {
+    fn resize(&mut self, new_size: PhysicalSize<u32>) -> Result<(), Error> {
         let Some(canvas) = &mut self.canvas else {
-            return;
+            tracing::error!("canvas is None?");
+            panic!();
         };
-        canvas.resize(new_size);
+        canvas.resize(new_size)?;
         if let Ok(mut conf) = self.typeset_config.write() {
             conf.page_width = new_size.width as usize;
             conf.page_height = new_size.height as usize;
         }
-        self.book.repaginate().unwrap();
+        self.book.repaginate()?;
+        Ok(())
     }
 }
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.init(event_loop);
+        if let Err(e) = self.init(event_loop) {
+            tracing::error!("app init: {}", e);
+            panic!()
+        }
     }
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
@@ -156,13 +187,19 @@ impl ApplicationHandler for App {
                 //    }
                 //}
                 Key::Named(NamedKey::ArrowLeft) => {
-                    self.book.prev_page().unwrap();
+                    if let None = self.book.prev_page().ok() {
+                        tracing::warn!("no previous page");
+                        return;
+                    }
                     if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }
                 }
                 Key::Named(NamedKey::ArrowRight) => {
-                    self.book.next_page().unwrap();
+                    if let None = self.book.next_page().ok() {
+                        tracing::warn!("no next page");
+                        return;
+                    }
                     if let Some(win) = self.window.as_ref() {
                         win.request_redraw();
                     }
@@ -173,10 +210,16 @@ impl ApplicationHandler for App {
                 _ => (),
             },
             WindowEvent::Resized(new_size) => {
-                self.resize(new_size);
+                if let Err(e) = self.resize(new_size) {
+                    tracing::error!("resize: {}", e);
+                    panic!()
+                }
             }
             WindowEvent::RedrawRequested => {
-                self.redraw();
+                if let Err(e) = self.redraw() {
+                    tracing::error!("redraw: {}", e);
+                    panic!()
+                }
             }
             _ => (),
         }

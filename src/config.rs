@@ -3,6 +3,8 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
 
+use crate::app::Error;
+
 const APP_NAME: &str = "aristotle";
 const CONF_FILE: &str = "config.toml";
 
@@ -17,22 +19,22 @@ pub struct Config {
     pub page_height: usize,
 }
 impl Config {
-    pub fn load_config() -> Self {
+    pub fn load_config() -> Result<Self, Error> {
         let dir = dirs::config_dir().unwrap().join(APP_NAME);
         let path = dir.join(CONF_FILE);
         let config = if path.exists() {
-            let content = fs::read_to_string(&path).unwrap();
-            toml::from_str(&content).unwrap()
+            let content = fs::read_to_string(&path)?;
+            toml::from_str(&content)?
         } else {
             tracing::warn!("config file not found, using defaults");
             let config = Self::defaults();
             let _ = std::fs::create_dir(dir);
-            let mut file = File::create(path).unwrap();
-            let contents = toml::to_string(&config).unwrap();
-            file.write_all(contents.as_ref()).unwrap();
+            let mut file = File::create(path)?;
+            let contents = toml::to_string(&config)?;
+            file.write_all(contents.as_ref())?;
             config
         };
-        config
+        Ok(config)
     }
 
     fn defaults() -> Self {

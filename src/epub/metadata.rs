@@ -2,7 +2,7 @@ use quick_xml::events::Event;
 use quick_xml::Reader;
 use serde::Deserialize;
 
-use super::error::ContentError;
+use super::EpubError;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Metadata {
@@ -14,7 +14,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, ContentError> {
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, EpubError> {
         let mut depth = 1;
         let mut metadata = Self::default();
         loop {
@@ -40,7 +40,7 @@ impl Metadata {
                         break;
                     }
                 }
-                Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
+                Ok(Event::Eof) => return Err(EpubError::UnexpectedEof),
                 Err(e) => return Err(e.into()),
                 _ => {}
             }

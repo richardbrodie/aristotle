@@ -1,10 +1,26 @@
-use crate::draw::{Canvas, Error, Image};
+use crate::app::Error;
+use crate::draw::{Canvas, Image};
 use crate::epub::{Book, ElementVariant, Node};
 use crate::text::caret::Caret;
 use crate::text::fonts::{Family, FontStyle};
 use crate::text::geom::Point;
-use crate::text::typeset::{TResult, TypesetText};
-use crate::text::{typeset, TypesetConfig};
+use crate::text::typeset::TypesetText;
+use crate::text::{typeset, TextError, TypesetConfig};
+
+// #[derive(Debug, Error)]
+// pub enum PageError {
+//     #[error("malformed image tag")]
+//     ImageTag,
+//
+//     #[error("text")]
+//     Text(#[from] TextError),
+//
+//     #[error("draw")]
+//     Draw(#[from] draw::Error),
+//
+//     #[error("book")]
+//     Epub(#[from] epub::EpubError),
+// }
 
 enum BreakType {
     Line,
@@ -29,19 +45,23 @@ impl Page {
             match e {
                 PageElement::Text(t) => canvas.text(fam, t)?,
                 PageElement::Hr { start, end } => canvas.draw_line(start, end)?,
-                PageElement::Image(point, image) => canvas.image(point, image),
+                PageElement::Image(point, image) => canvas.image(point, image)?,
             }
         }
         Ok(())
     }
 }
 
-pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<Page> {
+pub fn paginate(
+    content: &Node,
+    config: &TypesetConfig,
+    book: &mut Book,
+) -> Result<Vec<Page>, Error> {
     let mut pages = vec![];
     let mut p = Page::default();
 
     let mut text_type = FontStyle::Regular;
-    let mut caret = Caret::new(config).unwrap();
+    let mut caret = Caret::new(config)?;
     let mut break_type = None;
 
     for node in content.iter() {
@@ -65,9 +85,11 @@ pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<
                     text_type = FontStyle::Italic;
                 }
                 ElementVariant::Image => {
-                    let attr = elem.attribute("xlink:href").unwrap();
-                    let content = book.file(attr.value()).unwrap();
-                    let image = Image::open(content).unwrap();
+                    let attr = elem
+                        .attribute("xlink:href")
+                        .ok_or_else(|| Error::ImageTag)?;
+                    let content = book.file(attr.value())?;
+                    let image = Image::open(content)?;
 
                     let img_height = config.page_height - 2 * config.vertical_margin as usize;
                     let scale = img_height as f32 / image.size.height as f32;
@@ -92,7 +114,7 @@ pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<
                     let end = Point::new(e as f32, (s.y + midline).ceil());
                     p.text_elements.push(PageElement::Hr { start, end });
                 }
-                v => {
+                _ => {
                     // tracing::info!("element: [{:?}]", v);
                 }
             },
@@ -117,10 +139,10 @@ pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<
                 while let Some(next) = remaining.take() {
                     let res = typeset::typeset(config, &mut caret, next, text_type);
                     match res {
-                        TResult::Ok(typeset_text) => {
+                        Ok(typeset_text) => {
                             p.text_elements.push(PageElement::Text(typeset_text));
                         }
-                        TResult::Overflow { processed, index } => {
+                        Err(TextError::ContentOverflow(processed, index)) => {
                             // commit the pre-overflow part
                             p.text_elements.push(PageElement::Text(processed));
                             pages.push(p);
@@ -131,10 +153,7 @@ pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<
                             let overflow = text.chars().skip(index);
                             remaining = Some(overflow);
                         }
-                        TResult::Error(err) => {
-                            tracing::error!("{:?}", err);
-                            panic!()
-                        }
+                        Err(err) => return Err(err.into()),
                     }
                 }
 
@@ -145,5 +164,5 @@ pub fn paginate(content: &Node, config: &TypesetConfig, book: &mut Book) -> Vec<
 
     // add the last non-overflowed page
     pages.push(p);
-    pages
+    Ok(pages)
 }

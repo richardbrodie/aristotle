@@ -1,4 +1,4 @@
-use super::{error::ContentError, html::Node, index::IndexElement};
+use super::{html::Node, index::IndexElement, EpubError};
 
 #[derive(Debug)]
 pub struct Content {
@@ -6,8 +6,8 @@ pub struct Content {
     pub node: Node,
 }
 impl Content {
-    pub fn new(elem: &IndexElement, input: &[u8]) -> Result<Self, ContentError> {
-        let node = Node::new(input).unwrap();
+    pub fn new(elem: &IndexElement, input: &[u8]) -> Result<Self, EpubError> {
+        let node = Node::new(input)?;
         Ok(Self {
             item: elem.to_owned(),
             node,

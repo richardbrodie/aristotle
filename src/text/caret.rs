@@ -1,14 +1,11 @@
 use crate::text::{fonts::FontStyle, geom::Point};
 
-use super::{FontError, TypesetConfig};
-
-// const INDENT_PERCENTAGE: f32 = 0.03;
+use super::{TextError, TypesetConfig};
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Caret {
     scaled_height: f32,
     space_width: f32,
-    // indent: f32,
     horizontal_margin: f32,
     vertical_margin: f32,
     page_width: f32,
@@ -16,7 +13,7 @@ pub struct Caret {
     point: Point,
 }
 impl Caret {
-    pub fn new(config: &TypesetConfig) -> Result<Self, FontError> {
+    pub fn new(config: &TypesetConfig) -> Result<Self, TextError> {
         let face = config.family.face(FontStyle::default())?;
         let scaled_height = face.scaled_height(config.point_size)?;
         let space_width = face.space_width(config.point_size)?;
@@ -24,11 +21,9 @@ impl Caret {
             config.horizontal_margin.into(),
             config.vertical_margin.into(),
         );
-        // let indent = config.page_width as f32 * INDENT_PERCENTAGE;
         Ok(Self {
             scaled_height,
             space_width,
-            // indent,
             horizontal_margin: config.horizontal_margin as f32,
             vertical_margin: config.vertical_margin as f32,
             page_width: config.page_width as f32,

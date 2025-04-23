@@ -51,12 +51,3 @@ pub struct Rect {
     pub width: usize,
     pub height: usize,
 }
-// impl Mul<f32> for Rect {
-//     type Output = Self;
-//     fn mul(self, rhs: f32) -> Self::Output {
-//         Self {
-//             min: self.min * rhs,
-//             max: self.max * rhs,
-//         }
-//     }
-// }

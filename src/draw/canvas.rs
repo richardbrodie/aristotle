@@ -21,17 +21,16 @@ impl Canvas {
         Ok(Self { surface, size })
     }
 
-    pub fn resize(&mut self, size: PhysicalSize<u32>) {
-        self.surface
-            .resize(
-                NonZeroU32::new(size.width).unwrap(),
-                NonZeroU32::new(size.height).unwrap(),
-            )
-            .unwrap();
+    pub fn resize(&mut self, size: PhysicalSize<u32>) -> Result<(), Error> {
+        self.surface.resize(
+            NonZeroU32::new(size.width).unwrap(),
+            NonZeroU32::new(size.height).unwrap(),
+        )?;
         self.size = Rect {
             width: size.width as usize,
             height: size.height as usize,
         };
+        Ok(())
     }
 
     pub fn present(&mut self) -> Result<(), Error> {
@@ -126,13 +125,13 @@ impl Canvas {
         Ok(())
     }
 
-    pub fn image(&mut self, point: &Point, img: &Image) {
+    pub fn image(&mut self, point: &Point, img: &Image) -> Result<(), Error> {
         // clipping
         let (pos_x, pos_y) = (point.x as usize, point.y as usize);
         let rows = cmp::min(img.size.height, self.size.height - pos_y);
         let cols = cmp::min(img.size.width, self.size.width - pos_x);
 
-        let mut buffer = self.surface.buffer_mut().unwrap();
+        let mut buffer = self.surface.buffer_mut()?;
 
         let ps = img.pixel_size as usize;
         // draw
@@ -152,5 +151,6 @@ impl Canvas {
                 buffer[idx] = pixel << 16 | pixel << 8 | pixel;
             }
         });
+        Ok(())
     }
 }

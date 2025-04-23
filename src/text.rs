@@ -8,7 +8,7 @@ use fonts::Family;
 use geom::Point;
 use ttf_parser::GlyphId;
 
-pub use error::FontError;
+pub use error::TextError;
 
 #[derive(Debug, Clone)]
 pub struct TypesetConfig {

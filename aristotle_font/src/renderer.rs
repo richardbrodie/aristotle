@@ -160,13 +160,13 @@ impl TextRenderer {
                     byte = 255 - byte;
 
                     // draw the bbox
-                    if cfg!(debug_assertions) && x == bbox_min_x as u32
-                        || x == bbox_max_x as u32
-                        || y == bbox_min_y as u32
-                        || y == bbox_max_y as u32
-                    {
-                        byte = 0;
-                    }
+                    //if cfg!(debug_assertions) && x == bbox_min_x as u32
+                    //    || x == bbox_max_x as u32
+                    //    || y == bbox_min_y as u32
+                    //    || y == bbox_max_y as u32
+                    //{
+                    //    byte = 0;
+                    //}
 
                     // don't draw white pixels inside the bbox either
                     if byte == 255 {

@@ -4,10 +4,9 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
 use crate::element::Element;
-use crate::guide::{Guide, Reference};
-use crate::manifest::{Manifest, ManifestItem};
-use crate::metadata::Metadata;
+use crate::guide::Guide;
 use crate::spine::Spine;
+use crate::{manifest::Manifest, metadata::Metadata};
 use crate::{Content, Error};
 
 #[allow(dead_code)]

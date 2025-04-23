@@ -10,7 +10,7 @@ use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
 
 use aristotle_font::{
-    indexer::FontIndexer, indexer::Indexer, GlyphHandler, Point, RenderingConfig, TextObject,
+    indexer::FontIndexer, indexer::Indexer, Point, RenderingConfig, TextObject, TextRenderer,
 };
 
 pub type SoftBufferType<'a> = softbuffer::Buffer<'a, Rc<Window>, Rc<Window>>;
@@ -29,7 +29,7 @@ fn main() {
 pub struct App {
     window: Option<Rc<Window>>,
     surface: Option<Surface<Rc<Window>, Rc<Window>>>,
-    glyphs: GlyphHandler,
+    glyphs: TextRenderer,
     font_index: FontIndexer,
     text: Vec<TextObject>,
 }
@@ -43,7 +43,7 @@ impl App {
             height: 480,
             font: None,
         };
-        let glyphs = GlyphHandler::new(&config);
+        let glyphs = TextRenderer::new(&config);
         Self {
             window: None,
             surface: None,

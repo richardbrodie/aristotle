@@ -1,8 +1,8 @@
 mod builder;
 mod font;
 mod geom;
-mod handler;
 pub mod indexer;
+mod renderer;
 
 use self::font::{Family, FontStyle};
 use ttf_parser::GlyphId;
@@ -57,4 +57,4 @@ pub struct Glyph {
 }
 
 pub use geom::{Point, Rect};
-pub use handler::GlyphHandler;
+pub use renderer::TextRenderer;

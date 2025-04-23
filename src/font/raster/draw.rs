@@ -4,9 +4,14 @@ use crate::font::FontError;
 
 use super::builder::Builder;
 
-pub fn raster<F>(family: &Family, text: &Text, mut pix_func: F) -> Result<(), FontError>
+pub fn raster<F>(
+    family: &Family,
+    text: &Text,
+    width: usize,
+    mut pix_func: F,
+) -> Result<(), FontError>
 where
-    F: FnMut(u32, u32, u8),
+    F: FnMut(u32, usize),
 {
     let face = family.face(text.style)?;
     let scale_factor = face.scale_factor(text.point_size);
@@ -62,7 +67,12 @@ where
                 let x = x + (g.pos.x + xoff) as u32;
                 let y = y + g.pos.y as u32;
 
-                pix_func(x, y, byte);
+                // pix_func(x, y, byte);
+
+                let z = byte as u32;
+                let c = z | z << 8 | z << 16;
+                let idx = x as usize + y as usize * width;
+                pix_func(c, idx);
             });
         }
     }
@@ -112,7 +122,7 @@ pub mod tests {
             style: FontStyle::Regular,
         };
         let fam = test_family(t.style);
-        let r = raster(&fam, &t, |_, _, _| ());
+        let r = raster(&fam, &t, 640, |_, _| ());
         assert!(r.is_ok());
     }
 
@@ -140,7 +150,7 @@ pub mod tests {
             style: FontStyle::Italic,
         };
         let fam = test_family(t.style);
-        let r = raster(&fam, &t, |_, _, _| ());
+        let r = raster(&fam, &t, 640, |_, _| ());
         assert!(r.is_ok());
     }
 }

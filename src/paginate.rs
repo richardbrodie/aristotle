@@ -116,138 +116,6 @@ pub fn paginate(content: &BookContent, ts: &Typesetter) -> Vec<Page> {
     pages
 }
 
-// pub struct Content {
-//     typesetter: Rc<RefCell<Typesetter>>,
-//     book_content: Option<BookContent>,
-//     pages: Vec<Page>,
-// }
-// impl Content {
-//     pub fn new(t: Rc<RefCell<Typesetter>>) -> Self {
-//         Self {
-//             typesetter: t,
-//             book_content: None,
-//             pages: vec![],
-//         }
-//     }
-//     pub fn set_content(&mut self, content: BookContent) {
-//         self.pages.clear();
-//         self.book_content = Some(content);
-//         self.typeset().unwrap();
-//     }
-//     pub fn page(&self, idx: usize) -> Option<&Page> {
-//         self.pages.get(idx)
-//     }
-//     pub fn len(&self) -> usize {
-//         self.pages.len()
-//     }
-//     pub fn typeset(&mut self) -> Result<(), ()> {
-//         let mut p = Page::default();
-//         let t = self.typesetter.borrow();
-//         let mut c = ts.new_caret();
-//         let Some(content) = self.book_contents.as_ref() else {
-//             tracing::error!("attempted to typset with empty content");
-//             return Err(());
-//         };
-//         let t = self.typesetter.borrow();
-//         for elem in contents.content().iter() {
-//             match elem {
-//                 EpubElement::Linebreak => {
-//                     if p.text_elements.is_empty() {
-//                         continue;
-//                     }
-//                     match ts.linebreak(c) {
-//                         Ok(point) => c = point,
-//                         Err(FontError::PageOverflow) => {
-//                             tracing::info!("l: filled page with element");
-//                             self.pages.push(p);
-//                             p = Page::default();
-//                             c = ts.new_caret();
-//                         }
-//                         Err(e) => {
-//                             tracing::error!("{:?}", e);
-//                             panic!()
-//                         }
-//                     }
-//                 }
-//                 EpubElement::Paragraph => match ts.paragraph(c) {
-//                     Ok(point) => c = point,
-//                     Err(FontError::PageOverflow) => {
-//                         tracing::info!("p: filled page with element");
-//                         self.pages.push(p);
-//                         p = Page::default();
-//                         c = ts.new_caret();
-//                     }
-//                     Err(e) => {
-//                         tracing::error!("{:?}", e);
-//                         panic!()
-//                     }
-//                 },
-//                 EpubElement::Inline(i) => {
-//                     let to = convert(i);
-//                     match ts.text(c, &to) {
-//                         TResult::Overflow {
-//                             processed,
-//                             remainder,
-//                         } => {
-//                             tracing::info!(
-//                                 "i: element overflowed at char {}",
-//                                 to.raw_texts.len() - remainder.len()
-//                             );
-//                             p.text_elements.push(processed.text);
-//                             self.pages.push(p);
-//                             p = Page::default();
-//                             c = ts.new_caret();
-//                             let to1 = TextObject {
-//                                 raw_text: remainder.trim().to_owned(),
-//                                 style: to.style,
-//                                 ..Default::default()
-//                             };
-//                             let TResult::Ok(Element { text, caret }) = ts.text(c, &to1) else {
-//                                 tracing::error!("failed to split an overflowing element");
-//                                 panic!();
-//                             };
-//                             c = caret;
-//                             p.text_elements.push(text);
-//                         }
-//                         TResult::Error(e) => {
-//                             tracing::error!("{:?}", e);
-//                             panic!()
-//                         }
-//                         TResult::Ok(Element { caret, text }) => {
-//                             c = caret;
-//                             p.text_elements.push(text)
-//                         }
-//                     }
-//                 }
-//                 EpubElement::Heading(i) => {
-//                     let to = convert(i);
-//                     match ts.heading(c, &to) {
-//                         TResult::Overflow {
-//                             processed: _,
-//                             remainder,
-//                         } => {
-//                             tracing::info!(
-//                                 "h: element overflowed at char {}",
-//                                 to.raw_texts.len() - remainder.len()
-//                             );
-//                         }
-//                         TResult::Error(e) => {
-//                             tracing::error!("{:?}", e);
-//                             panic!()
-//                         }
-//                         TResult::Ok(Element { caret, text }) => {
-//                             c = caret;
-//                             p.text_elements.push(text)
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//         self.pages.push(p);
-//         Ok(())
-//     }
-// }
-
 fn convert(i: &TextElement) -> TextObject {
     let s = match i.style {
         TextStyle::Italic => FontStyle::Italic,
@@ -282,13 +150,13 @@ pub struct Page {
     text_elements: Vec<Text>,
 }
 impl Page {
-    pub fn raster<F>(&self, fam: &Family, mut f: F) -> Result<(), FontError>
+    pub fn raster<F>(&self, fam: &Family, width: usize, mut f: F) -> Result<(), FontError>
     where
-        F: FnMut(u32, u32, u8),
+        F: FnMut(u32, usize),
     {
         self.text_elements
             .iter()
-            .try_for_each(|e| raster(fam, e, &mut f))
+            .try_for_each(|e| raster(fam, e, width, &mut f))
     }
 }
 

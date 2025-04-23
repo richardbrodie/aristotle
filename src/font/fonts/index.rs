@@ -10,7 +10,7 @@ use super::family::Family;
 use super::style::FontStyle;
 
 pub struct IndexedFont {
-    pub path: PathBuf,
+    path: PathBuf,
     pub bytes: Vec<u8>,
     pub family: String,
     pub style: FontStyle,

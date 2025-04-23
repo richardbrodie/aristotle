@@ -1,74 +1,54 @@
-use std::borrow::Cow;
+use quick_xml::{events::Event, Reader};
 
-use quick_xml::events::{BytesStart, Event};
-use quick_xml::Reader;
-
-use super::element::MediaType;
-use super::EpubError;
+use super::error::ContentError;
 
 #[derive(Debug, Default)]
 pub struct Manifest {
-    pub items: Vec<ManifestItem>,
+    items: Vec<Item>,
 }
 impl Manifest {
-    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Manifest, EpubError> {
-        let mut items: Vec<ManifestItem> = Vec::new();
+    pub fn extract(reader: &mut Reader<&[u8]>) -> Result<Self, ContentError> {
+        let mut depth = 1;
+        let mut metadata = Self::default();
         loop {
+            let mut item = Item::default();
             match reader.read_event() {
-                Ok(Event::Empty(ref e)) => {
-                    if e.name().as_ref() == b"item" {
-                        items.push(ManifestItem::extract(reader, e)?);
+                Ok(Event::Empty(ref e)) if e.name().as_ref() == b"item" => {
+                    for attr in e.attributes() {
+                        let attr = attr?;
+                        let val = attr.unescape_value()?.into_owned();
+                        match attr.key.as_ref() {
+                            b"href" => item.href = val,
+                            b"id" => item.id = val,
+                            b"media-type" => item.mediatype = val,
+                            _ => (),
+                        }
+                    }
+                    metadata.items.push(item);
+                }
+                Ok(Event::End(_)) => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
                     }
                 }
-                Ok(Event::End(ref e)) if e.name().as_ref() == b"manifest" => break,
+                Ok(Event::Eof) => return Err(ContentError::UnexpectedEof),
                 Err(e) => return Err(e.into()),
-                _ => (),
+                _ => {}
             }
         }
-
-        Ok(Manifest { items })
+        Ok(metadata)
     }
-    pub fn find(&self, id: &str) -> Option<&ManifestItem> {
+    pub fn item(&self, id: &str) -> Option<&Item> {
         self.items.iter().find(|i| i.id == id)
     }
 }
 
 #[derive(Debug, Default)]
-pub struct ManifestItem {
+pub struct Item {
     id: String,
-    href: String,
+    pub href: String,
     mediatype: String,
-}
-impl ManifestItem {
-    fn extract(reader: &mut Reader<&[u8]>, element: &BytesStart) -> Result<Self, EpubError> {
-        let mut mediatype = Cow::Borrowed("");
-        let mut href = Cow::Borrowed("");
-        let mut id = Cow::Borrowed("");
-
-        for attr_result in element.attributes() {
-            let a = attr_result?;
-            match a.key.as_ref() {
-                b"href" => href = a.decode_and_unescape_value(reader.decoder())?,
-                b"id" => id = a.decode_and_unescape_value(reader.decoder())?,
-                b"media-type" => mediatype = a.decode_and_unescape_value(reader.decoder())?,
-                _ => (),
-            }
-        }
-        Ok(Self {
-            id: id.into(),
-            mediatype: mediatype.into(),
-            href: href.into(),
-        })
-    }
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-    pub fn href(&self) -> &str {
-        &self.href
-    }
-    pub fn mediatype(&self) -> MediaType {
-        self.mediatype.as_str().into()
-    }
 }
 
 #[cfg(test)]

@@ -1,3 +1,4 @@
+pub mod caret;
 mod error;
 pub mod fonts;
 pub mod geom;
@@ -9,14 +10,14 @@ use geom::{Point, Rect};
 use ttf_parser::GlyphId;
 
 pub use error::FontError;
-pub use typeset::Typesetter;
+// pub use typeset::Typesetter;
 
 #[derive(Debug, Clone)]
 pub struct TypesetConfig {
     pub family: Family,
     pub point_size: f32,
-    pub page_width: u32,
-    pub page_height: u32,
+    pub page_width: usize,
+    pub page_height: usize,
     pub horizontal_margin: u8,
     pub vertical_margin: u8,
 }

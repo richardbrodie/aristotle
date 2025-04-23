@@ -225,6 +225,19 @@ impl<'a> Element<'a> {
     }
 }
 
+impl<'s> std::fmt::Display for Element<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Element <{:?}> [{}:{}]",
+            self.variant(),
+            self.attributes.len(),
+            self.children.len()
+        )?;
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct Attribute<'a> {
     key: Cow<'a, str>,

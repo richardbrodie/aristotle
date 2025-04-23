@@ -1,6 +1,6 @@
 use crate::epub::Content as BookContent;
 use crate::epub::ContentElement as EpubElement;
-use crate::epub::TextElement;
+// use crate::epub::TextElement;
 use crate::epub::TextStyle;
 use crate::font::fonts::Family;
 use crate::font::fonts::FontStyle;

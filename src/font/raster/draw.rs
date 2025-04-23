@@ -1,12 +1,12 @@
 use crate::font::fonts::Family;
-use crate::font::typeset::Text;
+use crate::font::typeset::TypesetText;
 use crate::font::FontError;
 
 use super::builder::Builder;
 
 pub fn raster<F>(
     family: &Family,
-    text: &Text,
+    text: &TypesetText,
     width: usize,
     mut pix_func: F,
 ) -> Result<(), FontError>
@@ -17,13 +17,16 @@ where
     let scale_factor = face.scale_factor(text.point_size);
 
     let face = face.as_ttf_face()?;
+    let desc = face.descender() as f32;
+    let asc = face.ascender() as f32;
+    let h = ((asc - desc) * scale_factor).ceil();
 
     let mut builder = Builder::new(face.descender(), scale_factor);
     for g in text.glyphs.iter() {
         let min = g.dim.min;
         let max = g.dim.max;
-        let w = (2.0 * max.x * scale_factor).ceil();
-        let h = ((max.y - min.y) * scale_factor).ceil();
+        // let w = (2.0 * max.x * scale_factor).ceil();
+        let w = (1.0 * max.x * scale_factor).ceil();
         builder.reset(w as usize, h as usize, -min.x);
         if let Some(og) = face.outline_glyph(g.gid, &mut builder) {
             builder.rasteriser.for_each_pixel_2d(|x, y, v| {
@@ -67,8 +70,6 @@ where
                 let x = x + (g.pos.x + xoff) as u32;
                 let y = y + g.pos.y as u32;
 
-                // pix_func(x, y, byte);
-
                 let z = byte as u32;
                 let c = z | z << 8 | z << 16;
                 let idx = x as usize + y as usize * width;
@@ -85,7 +86,7 @@ pub mod tests {
 
     use crate::font::fonts::{Family, FontStyle};
     use crate::font::geom::{Point, Rect};
-    use crate::font::typeset::Text;
+    use crate::font::typeset::TypesetText;
     use crate::font::Glyph;
 
     use super::raster;
@@ -103,7 +104,7 @@ pub mod tests {
 
     #[test]
     fn regular_y() {
-        let t = Text {
+        let t = TypesetText {
             glyphs: vec![Glyph {
                 gid: GlyphId(588),
                 pos: Point {
@@ -128,7 +129,7 @@ pub mod tests {
 
     #[test]
     fn italic_y() {
-        let t = Text {
+        let t = TypesetText {
             glyphs: vec![
                 //},
                 Glyph {

@@ -1,99 +1,93 @@
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
-use crate::config::Config;
-use crate::epub::{Book, Item};
-use crate::font::fonts::Family;
-use crate::font::{TypesetConfig, Typesetter};
-use crate::paginate::{paginate, Page};
+use crate::epub::{self, Book, ElementVariant, IndexElement, Indexable, Node};
+use crate::font::fonts::{Family, FontStyle};
+use crate::font::typeset::{TResult, TypesetText};
+use crate::font::{FontError, TypesetConfig};
+use crate::page::{paginate, Page};
 
 #[derive(Debug)]
 pub enum Error {
     NoChapter,
+    Epub(epub::Error),
+}
+impl From<epub::Error> for Error {
+    fn from(error: epub::Error) -> Self {
+        Self::Epub(error)
+    }
 }
 
 pub struct BookHandler {
     book: Book,
-    // config: TypesetConfig,
-    typesetter: Typesetter,
-    current_chapter: Item,
+    config: Arc<RwLock<TypesetConfig>>,
+    current_chapter: Option<String>,
     current_page: usize,
     pages: Vec<Page>,
 }
 impl BookHandler {
-    pub fn new<P: AsRef<Path>>(path: &P, ts: Typesetter) -> Self {
+    pub fn new<P: AsRef<Path>>(path: &P, config: Arc<RwLock<TypesetConfig>>) -> Self {
         let book = Book::new(path).unwrap();
-        let index = book.index();
-        for i in index.items() {
-            println!("item: {:?}", i);
-        }
-        let first_content = book.index().first_item().unwrap().to_owned();
+
         Self {
             book,
-            typesetter: ts,
-            current_chapter: first_content,
+            config,
+            current_chapter: None,
             current_page: 0,
             pages: vec![],
         }
+    }
+
+    pub fn repaginate(&mut self) -> Result<(), Error> {
+        if let Some(chap) = self.current_chapter.as_ref() {
+            let content = self.book.content(&chap)?;
+            let node = content.iter().next().unwrap();
+
+            let c = self.config.read().unwrap();
+            self.pages = paginate(node, &c);
+        }
+        Ok(())
     }
 
     pub fn page(&self) -> Option<&Page> {
         self.pages.get(self.current_page)
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        self.typesetter.resize(width, height);
-    }
-
     pub fn next_page(&mut self) -> Result<(), Error> {
-        let pages = self.pages.len();
-        if pages > 0 && self.current_page < pages - 1 {
-            tracing::info!(
-                "next page: chapter: {}, new page: {} of {}",
-                self.current_chapter.id(),
-                self.current_page + 2,
-                pages
-            );
+        let num_pages = self.pages.len();
+        if num_pages > 0 && self.current_page < num_pages - 1 {
             self.current_page += 1;
         } else {
             // last page so get new content
-            let Some(next) = self.book.index().next_item(&self.current_chapter) else {
-                return Err(Error::NoChapter);
-            };
-            let next = next.to_owned();
-            let Ok(next_chapter) = self.book.content(&next) else {
-                return Err(Error::NoChapter);
-            };
+            let content = match self.current_chapter.as_ref() {
+                Some(id) => self.book.next(id),
+                None => self.book.first(),
+            }
+            .map_err(|_| Error::NoChapter)?;
 
-            let pages = paginate(&next_chapter, &self.typesetter);
-            tracing::info!(
-                "next chapter: cur: {}, new: {}, pages: {}",
-                self.current_chapter.id(),
-                next.id(),
-                pages.len()
-            );
+            let c = self.config.read().unwrap();
+            let pages = paginate(content.node(), &c);
             self.pages = pages;
-            self.current_chapter = next;
+            self.current_chapter = Some(content.id().to_owned());
             self.current_page = 0;
         }
         return Ok(());
     }
+
     pub fn prev_page(&mut self) -> Result<(), Error> {
-        // let pages = self.pages.len();
         if self.current_page > 0 {
             self.current_page -= 1;
         } else {
-            // last page so get new content
-            let Some(prev) = self.book.index().prev_item(&self.current_chapter) else {
-                return Err(Error::NoChapter);
-            };
-            let prev = prev.to_owned();
-            let Ok(prev_chapter) = self.book.content(&prev) else {
-                return Err(Error::NoChapter);
-            };
-
-            let pages = paginate(&prev_chapter, &self.typesetter);
+            // first page so get new content
+            let content = match self.current_chapter.as_ref() {
+                Some(id) => self.book.prev(id),
+                None => self.book.first(),
+            }
+            .map_err(|_| Error::NoChapter)?;
+            let c = self.config.read().unwrap();
+            let pages = paginate(content.node(), &c);
             self.pages = pages;
-            self.current_chapter = prev;
+            self.current_chapter = Some(content.id().to_owned());
             self.current_page = self.pages.len() - 1;
         }
         return Ok(());

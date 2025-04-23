@@ -16,6 +16,9 @@ impl<'a> Content<'a> {
     pub fn id(&self) -> &str {
         &self.id
     }
+    pub fn node(&self) -> &Node<'a> {
+        &self.node
+    }
     pub fn iter(&self) -> impl Iterator<Item = &Node<'_>> {
         self.node.iter()
     }

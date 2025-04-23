@@ -1,4 +1,3 @@
-use roxmltree::Document;
 use std::fs::File;
 use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
@@ -44,14 +43,14 @@ impl Book {
         let guide = extract_guide(&doc)?;
         drop(contents_opf);
 
-        return Ok(Book {
+        Ok(Book {
             sourcefile: epub,
             contents_dir,
             metadata,
             manifest,
             spine,
             guide,
-        });
+        })
     }
     fn read_document(&mut self, id: &str) -> Result<Vec<u8>, Error> {
         let mut file_bytes = Vec::new();
@@ -59,22 +58,22 @@ impl Book {
         if let Ok(_) = z.read_to_end(&mut file_bytes) {
             return Ok(file_bytes);
         }
-        return Err(Error::Zip);
+        Err(Error::Zip)
     }
     pub fn items(&self) -> impl Iterator<Item = Element> + '_ {
         self.spine
             .items()
             .map_while(move |id| self.manifest.find(id))
-            .map(|i| Element::new(i))
+            .map(Element::new)
     }
     pub fn element(&self, id: &str) -> Option<Element> {
-        self.manifest.find(id).map(|i| Element::new(i))
+        self.manifest.find(id).map(Element::new)
     }
     pub fn next_item(&self, id: &str) -> Option<Element> {
         self.spine
             .next(id)
             .and_then(|i| self.manifest.find(i))
-            .map(|i| Element::new(i))
+            .map(Element::new)
     }
     pub fn content(&mut self, id: &str) -> Option<Content> {
         if let Some(item) = self.manifest.find(id) {
@@ -87,7 +86,7 @@ impl Book {
     }
 }
 
-fn extract_guide<'a>(doc: &roxmltree::Document<'a>) -> Result<Option<Guide>, Error> {
+fn extract_guide(doc: &roxmltree::Document<'_>) -> Result<Option<Guide>, Error> {
     let guide_node = doc.descendants().find(|n| n.has_tag_name("guide"));
     if guide_node.is_none() {
         return Ok(None);
@@ -96,7 +95,6 @@ fn extract_guide<'a>(doc: &roxmltree::Document<'a>) -> Result<Option<Guide>, Err
     let references: Vec<_> = guide_node
         .unwrap()
         .children()
-        .into_iter()
         .filter(|node| node.has_tag_name("itemref"))
         .map(|node| {
             let mut href = String::new();
@@ -113,10 +111,10 @@ fn extract_guide<'a>(doc: &roxmltree::Document<'a>) -> Result<Option<Guide>, Err
             Reference::new(ref_type, title, href)
         })
         .collect();
-    return Ok(Some(Guide::new(references)));
+    Ok(Some(Guide::new(references)))
 }
 
-fn extract_spine<'a>(doc: &roxmltree::Document<'a>) -> Result<Spine, Error> {
+fn extract_spine(doc: &roxmltree::Document<'_>) -> Result<Spine, Error> {
     let spine_node = doc.descendants().find(|n| n.has_tag_name("spine")).unwrap();
 
     let toc = spine_node
@@ -126,7 +124,6 @@ fn extract_spine<'a>(doc: &roxmltree::Document<'a>) -> Result<Spine, Error> {
         .unwrap();
     let itemrefs: Vec<_> = spine_node
         .children()
-        .into_iter()
         .filter_map(|node| match node.has_tag_name("itemref") {
             true => node
                 .attributes()
@@ -135,10 +132,10 @@ fn extract_spine<'a>(doc: &roxmltree::Document<'a>) -> Result<Spine, Error> {
             false => None,
         })
         .collect();
-    return Ok(Spine::new(toc, itemrefs));
+    Ok(Spine::new(toc, itemrefs))
 }
 
-fn extract_manifest<'a>(doc: &roxmltree::Document<'a>) -> Result<Manifest, Error> {
+fn extract_manifest(doc: &roxmltree::Document<'_>) -> Result<Manifest, Error> {
     let manifest_node = doc
         .descendants()
         .find(|n| n.has_tag_name("manifest"))
@@ -146,7 +143,6 @@ fn extract_manifest<'a>(doc: &roxmltree::Document<'a>) -> Result<Manifest, Error
 
     let items: Vec<_> = manifest_node
         .children()
-        .into_iter()
         .filter(|node| node.has_tag_name("item"))
         .map(|node| {
             let mut href = String::new();
@@ -163,10 +159,10 @@ fn extract_manifest<'a>(doc: &roxmltree::Document<'a>) -> Result<Manifest, Error
             ManifestItem::new(mediatype, id, href)
         })
         .collect();
-    return Ok(Manifest::new(items));
+    Ok(Manifest::new(items))
 }
 
-fn extract_metadata<'a>(doc: &roxmltree::Document<'a>) -> Result<Metadata, Error> {
+fn extract_metadata(doc: &roxmltree::Document<'_>) -> Result<Metadata, Error> {
     let meta_node = doc
         .descendants()
         .find(|n| n.has_tag_name("metadata"))
@@ -190,7 +186,7 @@ fn extract_metadata<'a>(doc: &roxmltree::Document<'a>) -> Result<Metadata, Error
         }
     }
     let metadata = Metadata::new(title, language, identifier, author, published);
-    return Ok(metadata);
+    Ok(metadata)
 }
 
 fn find_rootfile<R>(epub_file: &mut ZipArchive<R>) -> Result<PathBuf, Error>
@@ -213,7 +209,7 @@ where
                 .find(|n| n.name() == "full-path")
                 .map(|a| a.value())
         })
-        .map(|s| PathBuf::from(s))
-        .ok_or_else(|| Error::Xml);
+        .map(PathBuf::from)
+        .ok_or(Error::Xml);
     rootfile_path
 }

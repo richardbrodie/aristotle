@@ -54,7 +54,7 @@ impl FontIndexer {
 impl Indexer for FontIndexer {
     fn get_family(&self, family: &str) -> Option<Family> {
         self.fonts.get(family).map(|v| {
-            let faces = v.iter().map(|font| Face::new(font)).collect();
+            let faces = v.iter().map(Face::new).collect();
             Family {
                 name: family.to_owned(),
                 faces,

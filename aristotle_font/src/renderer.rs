@@ -62,7 +62,7 @@ impl TextRenderer {
                 dbg!(last_gid, right, kern_val);
             }
         }
-        return 0.0;
+        0.0
     }
 
     pub fn typeset(&mut self, text: &TextObject, pos: Point) -> Result<TypesetObject, Error> {
@@ -108,14 +108,14 @@ impl TextRenderer {
 
             glyphs.push(Glyph { gid, pos, dim })
         }
-        return Ok(TypesetObject {
+        Ok(TypesetObject {
             glyphs,
             start: pos,
             caret,
             size: text.size,
             style: text.style,
             ..Default::default()
-        });
+        })
     }
 
     pub fn raster<F>(&self, text: &TypesetObject, mut pix_func: F) -> Result<(), Error>
@@ -142,10 +142,8 @@ impl TextRenderer {
                     let mut byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
 
                     //if there's no coverage just stop immediately
-                    if !cfg!(debug_assertions) {
-                        if byte == 0 {
-                            return;
-                        }
+                    if !cfg!(debug_assertions) && byte == 0 {
+                        return;
                     }
 
                     let bbox_min_x = og.x_min as f32 * scale_factor;
@@ -166,14 +164,12 @@ impl TextRenderer {
                     byte = 255 - byte;
 
                     // draw the bbox
-                    if cfg!(debug_assertions) {
-                        if x == (og.x_min as f32 * scale_factor) as u32
-                            || x == (og.x_max as f32 * scale_factor) as u32
-                            || y == ((og.y_min as f32 - min.y) as f32 * scale_factor) as u32
-                            || y == ((og.y_max as f32 - min.y) as f32 * scale_factor) as u32
-                        {
-                            byte = 0;
-                        }
+                    if cfg!(debug_assertions) && x == bbox_min_x as u32
+                        || x == bbox_max_x as u32
+                        || y == bbox_min_y as u32
+                        || y == bbox_max_y as u32
+                    {
+                        byte = 0;
                     }
 
                     // don't draw white pixels inside the bbox either

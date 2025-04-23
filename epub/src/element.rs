@@ -1,24 +1,24 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::manifest::ManifestItem;
 
 #[derive(Debug, Default)]
 pub enum MediaType {
     Image,
-    XHTML,
-    CSS,
+    Xhtml,
+    Css,
     Font,
-    TOC,
+    Toc,
     #[default]
     Unknown,
 }
 impl From<&str> for MediaType {
     fn from(value: &str) -> Self {
         match value {
-            "application/xhtml+xml" => MediaType::XHTML,
+            "application/xhtml+xml" => MediaType::Xhtml,
             "application/x-font-truetype" => MediaType::Font,
-            "text/css" => MediaType::CSS,
-            "application/x-dtbncx+xml" => MediaType::TOC,
+            "text/css" => MediaType::Css,
+            "application/x-dtbncx+xml" => MediaType::Toc,
             "image/jpeg" => MediaType::Image,
             _ => MediaType::Unknown,
         }

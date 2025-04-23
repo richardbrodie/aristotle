@@ -50,11 +50,11 @@ where
             char_buf = vec![];
             continue;
         }
-        let gid = face.glyph_index(c).ok_or(FontError::NoGlyph(c)).unwrap();
+        let id = face.glyph_index(c).ok_or(FontError::NoGlyph(c)).unwrap();
 
         // char metrics
-        let bearing = face.glyph_hor_side_bearing(gid).unwrap() as f32;
-        let advance = face.glyph_hor_advance(gid).unwrap() as f32;
+        let bearing = face.glyph_hor_side_bearing(id).unwrap() as f32;
+        let advance = face.glyph_hor_advance(id).unwrap() as f32;
 
         let hadv = advance * scale_factor;
         let _offset = bearing * scale_factor;
@@ -72,7 +72,7 @@ where
             caret.newline(1.0);
             for g in word_buffer.iter_mut() {
                 g.pos = caret.point();
-                let gadv = g.dim.max.x * scale_factor;
+                let gadv = g.advance * scale_factor;
                 caret.advance(gadv);
             }
         }
@@ -82,12 +82,13 @@ where
         // kern(&face, last, gid);
         // last = Some(gid);
 
-        let dim = Rect {
-            min: Point::new(bearing, desc),
-            max: Point::new(advance, asc),
-        };
-
-        word_buffer.push(Glyph { gid, pos, dim });
+        word_buffer.push(Glyph {
+            id,
+            bearing,
+            advance,
+            desc,
+            pos,
+        });
         char_buf.push(c);
     }
 

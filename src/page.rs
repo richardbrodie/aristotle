@@ -1,11 +1,12 @@
 use std::ops::DerefMut;
 
+use crate::draw;
 use crate::epub::{ElementVariant, Node};
-use crate::font::caret::Caret;
-use crate::font::fonts::{Family, FontStyle};
-use crate::font::geom::Point;
-use crate::font::typeset::{TResult, TypesetText};
-use crate::font::{raster, typeset, FontError, TypesetConfig};
+use crate::text::caret::Caret;
+use crate::text::fonts::{Family, FontStyle};
+use crate::text::geom::Point;
+use crate::text::typeset::{TResult, TypesetText};
+use crate::text::{typeset, FontError, TypesetConfig};
 
 enum BreakType {
     Line,
@@ -29,13 +30,13 @@ impl Page {
         B: DerefMut<Target = [u32]>,
     {
         self.text_elements.iter().try_for_each(|e| match e {
-            PageElement::Text(t) => raster::text(fam, t, width, buffer),
-            PageElement::Hr { start, end } => raster::hr(start, end, width, buffer),
+            PageElement::Text(t) => draw::text(fam, t, width, buffer),
+            PageElement::Hr { start, end } => draw::horizontal_line(start, end, width, buffer),
         })
     }
 }
 
-pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
+pub fn paginate(content: &Node, config: &TypesetConfig) -> Vec<Page> {
     let mut pages = vec![];
     let mut p = Page::default();
 
@@ -53,7 +54,7 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                 ElementVariant::Span => {
                     caret.space();
                 }
-                ElementVariant::P | ElementVariant::Div => {
+                ElementVariant::P | ElementVariant::Div | ElementVariant::Tr => {
                     text_type = FontStyle::Regular;
                     break_type = Some(BreakType::Block);
                 }
@@ -62,6 +63,21 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
                 }
                 ElementVariant::I => {
                     text_type = FontStyle::Italic;
+                }
+                ElementVariant::Image => {
+                    // dbg!(elem);
+                }
+                ElementVariant::Br => {
+                    break_type = Some(BreakType::Line);
+                }
+                ElementVariant::Hr => {
+                    caret.newline(1.0);
+                    let s = caret.point();
+                    let e = config.page_width - config.horizontal_margin as usize;
+                    let midline = caret.scaled_height() / 2.0;
+                    let start = Point::new(s.x, (s.y + midline).floor());
+                    let end = Point::new(e as f32, (s.y + midline).ceil());
+                    p.text_elements.push(PageElement::Hr { start, end });
                 }
                 v => {
                     // tracing::info!("element: [{:?}]", v);
@@ -111,23 +127,6 @@ pub fn paginate(content: &Node<'_>, config: &TypesetConfig) -> Vec<Page> {
 
                 text_type = FontStyle::Regular;
             }
-            Node::Empty(tag) => match tag {
-                ElementVariant::Br => {
-                    break_type = Some(BreakType::Line);
-                }
-                ElementVariant::Hr => {
-                    caret.newline(1.0);
-                    let s = caret.point();
-                    let e = config.page_width - config.horizontal_margin as usize;
-                    let midline = caret.scaled_height() / 2.0;
-                    let start = Point::new(s.x, (s.y + midline).floor());
-                    let end = Point::new(e as f32, (s.y + midline).ceil());
-                    p.text_elements.push(PageElement::Hr { start, end });
-                }
-                e => {
-                    tracing::info!("empty: [{:?}]", e);
-                }
-            },
         }
     }
 

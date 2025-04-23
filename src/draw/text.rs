@@ -1,25 +1,10 @@
 use std::ops::DerefMut;
 
-use crate::font::fonts::Family;
-use crate::font::geom::Point;
-use crate::font::typeset::TypesetText;
-use crate::font::FontError;
+use crate::text::fonts::Family;
+use crate::text::typeset::TypesetText;
+use crate::text::FontError;
 
 use super::builder::Builder;
-
-pub fn hr<B>(start: &Point, end: &Point, width: usize, buffer: &mut B) -> Result<(), FontError>
-where
-    B: DerefMut<Target = [u32]>,
-{
-    for y in start.y as usize..end.y as usize {
-        let py = y * width;
-        for x in start.x as usize..end.x as usize {
-            let idx = py + x;
-            buffer[idx] = 0;
-        }
-    }
-    Ok(())
-}
 
 pub fn text<B>(
     family: &Family,
@@ -40,12 +25,9 @@ where
 
     let mut builder = Builder::new(face.descender(), scale_factor);
     for g in text.glyphs.iter() {
-        let min = g.dim.min;
-        let max = g.dim.max;
-        // let w = (2.0 * max.x * scale_factor).ceil();
-        let w = (1.0 * max.x * scale_factor).ceil();
-        builder.reset(w as usize, h as usize, -min.x);
-        if let Some(og) = face.outline_glyph(g.gid, &mut builder) {
+        let w = (g.advance * scale_factor).ceil();
+        builder.reset(w as usize, h as usize, -g.bearing);
+        if let Some(og) = face.outline_glyph(g.id, &mut builder) {
             builder.rasteriser.for_each_pixel_2d(|x, y, v| {
                 //convert 0-1 range to 0-255
                 let mut byte = (v.clamp(0.0, 1.0) * 255.0) as u8;
@@ -55,10 +37,10 @@ where
                     return;
                 }
 
-                let bbox_min_x = (og.x_min as f32 - min.x) * scale_factor;
-                let bbox_max_x = (og.x_max as f32 - min.x) * scale_factor;
-                let bbox_min_y = (og.y_min as f32 - min.y) * scale_factor;
-                let bbox_max_y = (og.y_max as f32 - min.y) * scale_factor;
+                let bbox_min_x = (og.x_min as f32 - g.bearing) * scale_factor;
+                let bbox_max_x = (og.x_max as f32 - g.bearing) * scale_factor;
+                let bbox_min_y = (og.y_min as f32 - g.desc) * scale_factor;
+                let bbox_max_y = (og.y_max as f32 - g.desc) * scale_factor;
 
                 // don't draw pixels we know are outside the bbox
                 if x < bbox_min_x as u32
@@ -101,10 +83,10 @@ where
 pub mod tests {
     use ttf_parser::GlyphId;
 
-    use crate::font::fonts::{Family, FontStyle};
-    use crate::font::geom::{Point, Rect};
-    use crate::font::typeset::TypesetText;
-    use crate::font::Glyph;
+    use crate::text::fonts::{Family, FontStyle};
+    use crate::text::geom::{Point, Rect};
+    use crate::text::typeset::TypesetText;
+    use crate::text::Glyph;
 
     use super::text;
 
@@ -128,15 +110,11 @@ pub mod tests {
         let w = 640;
         let t = TypesetText {
             glyphs: vec![Glyph {
-                gid: GlyphId(588),
+                id: GlyphId(588),
                 pos: p,
-                dim: Rect {
-                    min: Point {
-                        x: -118.0,
-                        y: -441.0,
-                    },
-                    max: Point { x: 453.0, y: 952.0 },
-                },
+                bearing: -118.0,
+                advance: -441.0,
+                desc: 453.0,
             }],
             point_size: 18.0,
             style: FontStyle::Regular,
@@ -158,15 +136,11 @@ pub mod tests {
             glyphs: vec![
                 //},
                 Glyph {
-                    gid: GlyphId(588),
+                    id: GlyphId(588),
                     pos: p,
-                    dim: Rect {
-                        min: Point {
-                            x: -118.0,
-                            y: -441.0,
-                        },
-                        max: Point { x: 453.0, y: 952.0 },
-                    },
+                    bearing: -118.0,
+                    advance: -441.0,
+                    desc: 453.0,
                 },
             ],
             point_size: 18.0,

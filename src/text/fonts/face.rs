@@ -1,4 +1,4 @@
-use crate::font::FontError;
+use crate::text::FontError;
 
 use super::{index::IndexedFont, style::FontStyle};
 

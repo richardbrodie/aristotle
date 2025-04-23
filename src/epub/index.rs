@@ -1,10 +1,10 @@
-use std::path::Path;
+use std::{path::Path, rc::Rc};
 
 use super::{manifest::Manifest, spine::Spine};
 
 #[derive(Debug, Default)]
 pub struct Index {
-    elements: Vec<IndexElement>,
+    elements: Vec<Rc<IndexElement>>,
 }
 impl Index {
     pub fn new<P: AsRef<Path>>(manifest: Manifest, spine: Spine, contents_dir: P) -> Self {
@@ -17,36 +17,39 @@ impl Index {
                     id: s,
                     path: path.to_owned(),
                 };
-                elements.push(e);
+                elements.push(Rc::new(e));
             }
         }
         Self { elements }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &IndexElement> {
-        self.elements.iter()
+    // pub fn iter(&self) -> impl Iterator<Item = &IndexElement> {
+    //     self.elements.iter()
+    // }
+    pub fn element(&self, id: &str) -> Option<Rc<IndexElement>> {
+        self.elements
+            .iter()
+            .find(|i| i.id() == id)
+            .map(|c| c.clone())
     }
-    pub fn element(&self, id: &str) -> Option<&IndexElement> {
-        self.elements.iter().find(|i| i.id() == id)
+    pub fn first(&self) -> Option<Rc<IndexElement>> {
+        self.elements.first().map(|c| c.clone())
     }
-    pub fn first(&self) -> Option<&IndexElement> {
-        self.elements.first()
-    }
-    pub fn next(&self, cur: &str) -> Option<&IndexElement> {
+    pub fn next(&self, cur: &str) -> Option<Rc<IndexElement>> {
         let idx = self.elements.iter().position(|i| i.id == cur)?;
-        self.elements.get(idx + 1)
+        self.elements.get(idx + 1).map(|c| c.clone())
     }
-    pub fn prev(&self, cur: &str) -> Option<&IndexElement> {
+    pub fn prev(&self, cur: &str) -> Option<Rc<IndexElement>> {
         let idx = self.elements.iter().position(|i| i.id == cur)?;
         if idx > 0 {
-            self.elements.get(idx - 1)
+            self.elements.get(idx - 1).map(|c| c.clone())
         } else {
             None
         }
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct IndexElement {
     id: String,
     path: String,
@@ -62,22 +65,24 @@ impl IndexElement {
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
+
     use crate::epub::index::{Index, IndexElement};
 
-    fn elements() -> Vec<IndexElement> {
+    fn elements() -> Vec<Rc<IndexElement>> {
         vec![
-            IndexElement {
+            Rc::new(IndexElement {
                 id: "aaa".to_owned(),
                 path: "".to_owned(),
-            },
-            IndexElement {
+            }),
+            Rc::new(IndexElement {
                 id: "bbb".to_owned(),
                 path: "".to_owned(),
-            },
-            IndexElement {
+            }),
+            Rc::new(IndexElement {
                 id: "ccc".to_owned(),
                 path: "".to_owned(),
-            },
+            }),
         ]
     }
 

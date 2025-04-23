@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, path::Path};
+use std::{fs::File, io::Read, path::Path, time::SystemTime};
 
 use quick_xml::{events::Event, Reader};
 use zip::ZipArchive;
@@ -12,7 +12,6 @@ use super::{
     manifest::Manifest,
     metadata::Metadata,
     zip::{find_rootfile, read_document},
-    Indexable,
 };
 
 #[derive(Debug, Default)]
@@ -81,37 +80,34 @@ impl Book {
         book.source_zip = Some(epub);
         Ok(book)
     }
-    pub fn metadata(&self) -> &Metadata {
-        &self.metadata
+    // pub fn index(&self) -> &Index {
+    //     &self.index
+    // }
+    pub fn file(&mut self, href: &str) -> Result<&[u8], Error> {
+        let start = SystemTime::now();
+        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
+        read_document(zip, href, &mut self.content_buffer)?;
+        tracing::info!("read content: {:?}", start.elapsed());
+        Ok(&self.content_buffer)
     }
-    pub fn index(&self) -> impl Iterator<Item = &IndexElement> {
-        self.index.iter()
+    pub fn content(&mut self, elem: &IndexElement) -> Result<Content, Error> {
+        let data = self.file(elem.path()).unwrap();
+        let start = SystemTime::now();
+        let c = Content::new(elem, &data).map_err(|e| e.into());
+        tracing::info!("parse content: {:?}", start.elapsed());
+        c
     }
-}
 
-impl Indexable for Book {
-    fn content(&mut self, id: &str) -> Result<Content, Error> {
-        let item = self.index.element(id).ok_or(Error::ContentNotFound)?;
-        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        read_document(zip, item.path(), &mut self.content_buffer)?;
-        Content::new(id, &self.content_buffer).map_err(|e| e.into())
-    }
-    fn first(&mut self) -> Result<Content, Error> {
+    pub fn first(&mut self) -> Result<Content, Error> {
         let item = self.index.first().ok_or(Error::ContentNotFound)?;
-        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        read_document(zip, item.path(), &mut self.content_buffer)?;
-        Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
+        self.content(&item)
     }
-    fn next(&mut self, cur: &str) -> Result<Content, Error> {
+    pub fn next(&mut self, cur: &str) -> Result<Content, Error> {
         let item = self.index.next(cur).ok_or(Error::ContentNotFound)?;
-        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        read_document(zip, item.path(), &mut self.content_buffer)?;
-        Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
+        self.content(&item)
     }
-    fn prev(&mut self, cur: &str) -> Result<Content, Error> {
+    pub fn prev(&mut self, cur: &str) -> Result<Content, Error> {
         let item = self.index.prev(cur).ok_or(Error::ContentNotFound)?;
-        let zip = self.source_zip.as_mut().ok_or(Error::ZipFile)?;
-        read_document(zip, item.path(), &mut self.content_buffer)?;
-        Content::new(item.id(), &self.content_buffer).map_err(|e| e.into())
+        self.content(&item)
     }
 }

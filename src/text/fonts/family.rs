@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::font::FontError;
+use crate::text::FontError;
 
 use super::{face::Face, index::IndexedFont, style::FontStyle};
 

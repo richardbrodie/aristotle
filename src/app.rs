@@ -3,10 +3,10 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
-use crate::book_handler::BookHandler;
+use crate::book_handler::{self, BookHandler};
 use crate::config::Config;
-use crate::font::fonts::FontIndexer;
-use crate::font::TypesetConfig;
+use crate::text::fonts::FontIndexer;
+use crate::text::TypesetConfig;
 use softbuffer::Surface;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -14,6 +14,12 @@ use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
+
+#[derive(Debug)]
+pub enum Error {
+    NoFont,
+    BookHandler(book_handler::Error),
+}
 
 pub struct App {
     _font_index: FontIndexer,
@@ -25,6 +31,32 @@ pub struct App {
 }
 
 impl App {
+    pub fn new(config: Config) -> Result<Self, Error> {
+        let indexer = FontIndexer::new("testfiles/fonts");
+        let family = indexer.get_family(&config.family).ok_or(Error::NoFont)?;
+        let path = Path::new("testfiles/epubs/frankenstein.epub");
+
+        let tsconf = TypesetConfig {
+            family,
+            point_size: config.font_size,
+            page_width: 640,
+            page_height: 480,
+            horizontal_margin: config.horizontal_margin,
+            vertical_margin: config.vertical_margin,
+        };
+        let tsconfig = Arc::new(RwLock::new(tsconf));
+        let book = BookHandler::new(&path, tsconfig.clone()).map_err(|e| Error::BookHandler(e))?;
+
+        Ok(Self {
+            _font_index: indexer,
+            window: None,
+            surface: None,
+            config,
+            typeset_config: tsconfig,
+            book,
+        })
+    }
+
     pub fn init(&mut self, event_loop: &ActiveEventLoop) {
         let window = Rc::new(
             event_loop
@@ -76,34 +108,7 @@ impl App {
         }
     }
 }
-impl Default for App {
-    fn default() -> Self {
-        let config = Config::load_config();
-        let indexer = FontIndexer::new("testfiles/fonts");
-        let family = indexer.get_family(&config.family).unwrap();
-        let path = Path::new("testfiles/epubs/frankenstein.epub");
 
-        let tsconf = TypesetConfig {
-            family,
-            point_size: config.font_size,
-            page_width: 640,
-            page_height: 480,
-            horizontal_margin: config.horizontal_margin,
-            vertical_margin: config.vertical_margin,
-        };
-        let tsconfig = Arc::new(RwLock::new(tsconf));
-        let book = BookHandler::new(&path, tsconfig.clone());
-
-        Self {
-            _font_index: indexer,
-            window: None,
-            surface: None,
-            config,
-            typeset_config: tsconfig,
-            book,
-        }
-    }
-}
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         self.init(event_loop);

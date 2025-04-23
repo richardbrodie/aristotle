@@ -48,15 +48,15 @@ impl Mul<f32> for Point {
 
 #[derive(Clone, Copy, Default, Debug)]
 pub struct Rect {
-    pub min: Point,
-    pub max: Point,
+    pub width: u32,
+    pub height: u32,
 }
-impl Mul<f32> for Rect {
-    type Output = Self;
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self {
-            min: self.min * rhs,
-            max: self.max * rhs,
-        }
-    }
-}
+// impl Mul<f32> for Rect {
+//     type Output = Self;
+//     fn mul(self, rhs: f32) -> Self::Output {
+//         Self {
+//             min: self.min * rhs,
+//             max: self.max * rhs,
+//         }
+//     }
+// }

@@ -1,4 +1,4 @@
-use crate::font::{fonts::FontStyle, geom::Point};
+use crate::text::{fonts::FontStyle, geom::Point};
 
 use super::{FontError, TypesetConfig};
 

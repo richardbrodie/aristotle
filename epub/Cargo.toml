@@ -4,6 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-roxmltree = "0.20.0"
-xml = "0.8.20"
+quick-xml = "0.36.2"
 zip = { version = "2.2.0", default-features = false, features = ["deflate"] }
